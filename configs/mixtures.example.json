@@ -1,0 +1,24 @@
+{
+  "mixtures": [
+    [
+      {
+        "id": "female_inst_sim_1",
+        "ref": "Data - speech separation MOS/SASSEC/Signals/orig/female_inst_sim_1.wav"
+      },
+      {
+        "id": "female_inst_sim_2",
+        "ref": "Data - speech separation MOS/SASSEC/Signals/orig/female_inst_sim_2.wav"
+      }
+    ],
+    [
+      {
+        "id": "male_inst_sim_1",
+        "ref": "Data - speech separation MOS/SASSEC/Signals/orig/male_inst_sim_1.wav"
+      },
+      {
+        "id": "male_inst_sim_2",
+        "ref": "Data - speech separation MOS/SASSEC/Signals/orig/male_inst_sim_2.wav"
+      }
+    ]
+  ]
+}

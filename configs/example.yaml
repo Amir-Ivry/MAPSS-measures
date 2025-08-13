@@ -1,0 +1,25 @@
+# Minimal working example configuration.
+results_root: results
+data_root: "/ABSOLUTE/PATH/TO/Unified/Signals"  # update this
+
+# Mixtures are given via a JSON file to keep YAML clean
+mixtures_file: configs/mixtures.example.json
+
+models: ["wav2vec2"]               # ["wavlm", "wav2vec2", "hubert"]
+distortion_keys: "all"
+alpha_dm: 1.0
+dm_solver: "full"                  # "lobpcg" or "full"
+pm_method: "gamma"                 # "gamma" or "rank"
+use_mlm: false
+mlm_oversample: false
+advanced_distortions: false
+layer: 2
+misalign_max_ms: 0
+add_ci: true
+seed: 42
+batch_size: 4
+energy_win_ms: 20
+energy_hop_ms: 20
+silence_ratio: 0.1
+delta_ci: 0.05
+cov_tolerance: 1e-6
