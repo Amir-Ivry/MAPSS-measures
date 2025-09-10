@@ -1,0 +1,7 @@
+pycache/
+*.py[cod]
+venv/
+results/
+*.wav
+.vscode/
+.DS_Store
