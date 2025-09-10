@@ -1,11 +1,13 @@
 """Utility functions preserving all original functionality."""
+
 import gc
-import warnings
 import threading
+import warnings
+from dataclasses import dataclass
+from pathlib import Path
+
 import numpy as np
 import torch
-from pathlib import Path
-from dataclasses import dataclass
 from scipy.optimize import linear_sum_assignment as _lsa
 
 warnings.filterwarnings("ignore", message="Some weights of Wav2Vec2Model")
@@ -33,9 +35,9 @@ def get_gpu_memory_info(verbose=False):
     if not verbose:
         return
     for i in range(torch.cuda.device_count()):
-        mem_allocated = torch.cuda.memory_allocated(i) / 1024 ** 3
-        mem_reserved = torch.cuda.memory_reserved(i) / 1024 ** 3
-        total_memory = torch.cuda.get_device_properties(i).total_memory / 1024 ** 3
+        mem_allocated = torch.cuda.memory_allocated(i) / 1024**3
+        mem_reserved = torch.cuda.memory_reserved(i) / 1024**3
+        total_memory = torch.cuda.get_device_properties(i).total_memory / 1024**3
         free_memory = total_memory - mem_reserved
         print(f"GPU {i}: {mem_allocated:.2f}GB allocated, {free_memory:.2f}GB free")
 
@@ -46,9 +48,11 @@ def write_wav_16bit(path, x, sr=16000):
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
         import soundfile as sf
+
         sf.write(str(path), x.astype(np.float32), sr)
     except Exception:
         from scipy.io.wavfile import write
+
         write(str(path), sr, (np.clip(x, -1, 1) * 32767).astype(np.int16))
 
 
@@ -77,8 +81,14 @@ def hungarian(cost):
         used = set()
         rows, cols = [], []
         for i in range(cost.shape[0]):
-            j = int(np.argmin([cost[i, k] if k not in used else 1e12
-                               for k in range(cost.shape[1])]))
+            j = int(
+                np.argmin(
+                    [
+                        cost[i, k] if k not in used else 1e12
+                        for k in range(cost.shape[1])
+                    ]
+                )
+            )
             used.add(j)
             rows.append(i)
             cols.append(j)
@@ -99,14 +109,14 @@ class GPUWorkDistributor:
 
     def execute_on_gpu(self, func, *args, **kwargs):
         if self.ngpu == 0:
-            kwargs.pop('device', None)
+            kwargs.pop("device", None)
             return func(*args, **kwargs)
         gid = self.get_least_loaded_gpu()
         with self.gpu_locks[gid]:
             self.gpu_load[gid] += 1
             try:
                 with torch.cuda.device(gid):
-                    kwargs['device'] = f'cuda:{gid}'
+                    kwargs["device"] = f"cuda:{gid}"
                     result = func(*args, **kwargs)
                 return result
             finally:
@@ -116,6 +126,7 @@ class GPUWorkDistributor:
 @dataclass
 class Mixture:
     """Mixture data structure."""
+
     mixture_id: str
     refs: list[Path]
     systems: dict[str, list[Path]]
@@ -161,7 +172,9 @@ def canonicalize_mixtures(mixtures, systems=None):
             refs, spk_ids = [], []
             for d in group:
                 if not isinstance(d, dict) or "ref" not in d or "id" not in d:
-                    raise ValueError("Legacy mixtures expect dicts with 'id' and 'ref'.")
+                    raise ValueError(
+                        "Legacy mixtures expect dicts with 'id' and 'ref'."
+                    )
                 rp = Path(d["ref"])
                 refs.append(rp)
                 spk_ids.append(f"{mid}__{str(d['id']).strip()}")
@@ -176,23 +189,32 @@ def canonicalize_mixtures(mixtures, systems=None):
     raise ValueError("Unsupported 'mixtures' format.")
 
 
-def random_misalign(sig, sr, max_ms, mode='single', rng=None):
+def random_misalign(sig, sr, max_ms, mode="single", rng=None):
     """Random misalignment exactly as original."""
     import random
+
     if rng is None:
         rng = random
     max_samples = int(sr * max_ms / 1000)
     if max_samples == 0:
         return sig
-    shift = rng.randint(-max_samples, max_samples) if mode == 'range' else int(max_samples)
+    shift = (
+        rng.randint(-max_samples, max_samples) if mode == "range" else int(max_samples)
+    )
     if shift == 0:
         return sig
     if isinstance(sig, torch.Tensor):
         z = torch.zeros(abs(shift), dtype=sig.dtype, device=sig.device)
-        return torch.cat([z, sig[:-shift]]) if shift > 0 else torch.cat([sig[-shift:], z])
+        return (
+            torch.cat([z, sig[:-shift]]) if shift > 0 else torch.cat([sig[-shift:], z])
+        )
     else:
         z = np.zeros(abs(shift), dtype=sig.dtype)
-        return np.concatenate([z, sig[:-shift]]) if shift > 0 else np.concatenate([sig[-shift:], z])
+        return (
+            np.concatenate([z, sig[:-shift]])
+            if shift > 0
+            else np.concatenate([sig[-shift:], z])
+        )
 
 
 def safe_cov_torch(X):
