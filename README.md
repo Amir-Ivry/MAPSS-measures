@@ -1,6 +1,6 @@
 # MAPSS-measures
 
-MAPSS (**Manifold-Aware Perceptual Speech Separation**) provides evaluation code for two perceptually grounded, frame-level measures:  
+MAPSS (**Manifold-Aware Perceptual Source Separation**) provides evaluation code for two perceptually grounded, frame-level measures:  
 - **Perceptual Separation (PS)** – quantifies how well separated speech sources are perceived.  
 - **Perceptual Match (PM)** – quantifies how closely separated signals match reference speech.  
 
