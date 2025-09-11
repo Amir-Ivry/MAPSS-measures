@@ -1,9 +1,11 @@
-import numpy as np
-import torch
 import librosa
+import numpy as np
 import pyloudnorm as pyln
-from config import SR, SILENCE_RATIO, ENERGY_WIN_MS, ENERGY_HOP_MS
-from utils import safe_corr_np, hungarian
+import torch
+
+from config import ENERGY_HOP_MS, ENERGY_WIN_MS, SILENCE_RATIO, SR
+from utils import hungarian, safe_corr_np
+
 
 def loudness_normalize(wav, sr=SR, target_lufs=-23.0):
     meter = pyln.Meter(sr)
@@ -14,13 +16,15 @@ def loudness_normalize(wav, sr=SR, target_lufs=-23.0):
         normalized_wav = normalized_wav / peak
     return normalized_wav
 
+
 def frame_rms_torch(sig, win, hop):
     dev = sig.device
     frames = sig.unfold(0, win, hop)
     if frames.size(0) and (frames.size(0) - 1) * hop == sig.numel() - win:
         frames = frames[:-1]
-    rms = torch.sqrt((frames ** 2).mean(1) + 1e-12)
+    rms = torch.sqrt((frames**2).mean(1) + 1e-12)
     return rms.to(dev)
+
 
 def make_union_voiced_mask(refs_tensors, win, hop):
     device = refs_tensors[0].device
@@ -31,9 +35,10 @@ def make_union_voiced_mask(refs_tensors, win, hop):
     for rms, L in zip(rms_vecs, lengths):
         ref_idx = lengths.index(L)
         thr = SILENCE_RATIO * torch.sqrt((refs_tensors[ref_idx] ** 2).mean())
-        sil = (rms <= thr)
+        sil = rms <= thr
         silent_union[:L] |= sil
     return ~silent_union
+
 
 def assign_outputs_to_refs_by_corr(ref_paths, out_paths):
     if not out_paths:

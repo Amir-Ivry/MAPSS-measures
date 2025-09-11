@@ -1,16 +1,27 @@
 import json
 import random
-from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
-import pandas as pd
-import librosa
+from datetime import datetime
 
+import librosa
+import pandas as pd
+
+from audio import (
+    assign_outputs_to_refs_by_corr,
+    loudness_normalize,
+    make_union_voiced_mask,
+)
 from config import *
+from distortions import apply_adv_distortions, apply_distortions
+from metrics import (
+    compute_pm,
+    compute_ps,
+    diffusion_map_torch,
+    pm_ci_components_full,
+    ps_ci_components_full,
+)
+from models import embed_batch, load_model
 from utils import *
-from models import load_model, embed_batch
-from audio import loudness_normalize, make_union_voiced_mask, assign_outputs_to_refs_by_corr
-from distortions import apply_distortions, apply_adv_distortions
-from metrics import diffusion_map_torch, compute_ps, compute_pm, ps_ci_components_full, pm_ci_components_full
 
 
 def run_experiment(
@@ -25,7 +36,7 @@ def run_experiment(
     seed=42,
     on_missing="skip",
     verbose=False,
-    max_gpus=None
+    max_gpus=None,
 ):
 
     # Initialize
@@ -51,18 +62,17 @@ def run_experiment(
         entries = []
         for i, refp in enumerate(m.refs):
             sid = m.speaker_ids[i]
-            entries.append({
-                "id": sid,
-                "ref": Path(refp),
-                "mixture": m.mixture_id,
-                "outs": {}
-            })
+            entries.append(
+                {"id": sid, "ref": Path(refp), "mixture": m.mixture_id, "outs": {}}
+            )
         mixture_entries.append(entries)
 
     # Assignment of system outputs
     for m, mix_entries in zip(canon_mix, mixture_entries):
         for algo, out_list in (m.systems or {}).items():
-            mapping = assign_outputs_to_refs_by_corr([e["ref"] for e in mix_entries], out_list)
+            mapping = assign_outputs_to_refs_by_corr(
+                [e["ref"] for e in mix_entries], out_list
+            )
             for idx, e in enumerate(mix_entries):
                 j = mapping[idx]
                 if j is not None:
@@ -70,7 +80,9 @@ def run_experiment(
 
     # Algorithms to run
     if algos is None:
-        algos_to_run = sorted({algo for m in canon_mix for algo in (m.systems or {}).keys()})
+        algos_to_run = sorted(
+            {algo for m in canon_mix for algo in (m.systems or {}).keys()}
+        )
     else:
         algos_to_run = list(algos)
 
@@ -87,19 +99,24 @@ def run_experiment(
         "seed": seed,
         "batch_size": BATCH_SIZE,
         "ngpu": ngpu,
-        "max_gpus": max_gpus
+        "max_gpus": max_gpus,
     }
 
     with open(os.path.join(exp_root, "params.json"), "w") as f:
         json.dump(params, f, indent=2)
 
     # Save canonical manifest
-    canon_struct = [{
-        "mixture_id": m.mixture_id,
-        "references": [str(p) for p in m.refs],
-        "systems": {a: [str(p) for p in outs] for a, outs in (m.systems or {}).items()},
-        "speaker_ids": m.speaker_ids
-    } for m in canon_mix]
+    canon_struct = [
+        {
+            "mixture_id": m.mixture_id,
+            "references": [str(p) for p in m.refs],
+            "systems": {
+                a: [str(p) for p in outs] for a, outs in (m.systems or {}).items()
+            },
+            "speaker_ids": m.speaker_ids,
+        }
+        for m in canon_mix
+    ]
 
     with open(os.path.join(exp_root, "manifest_canonical.json"), "w") as f:
         json.dump(canon_struct, f, indent=2)
@@ -116,7 +133,6 @@ def run_experiment(
 
     if verbose:
         print("Loading reference signals...")
-
     for e in flat_entries:
         wav, _ = librosa.load(str(e["ref"]), sr=SR)
         all_refs[e["id"]] = torch.from_numpy(loudness_normalize(wav)).pin_memory()
@@ -168,7 +184,9 @@ def run_experiment(
                     continue
 
                 wav, _ = librosa.load(str(assigned_path), sr=SR)
-                all_outs[e["id"]] = torch.from_numpy(loudness_normalize(wav)).pin_memory()
+                all_outs[e["id"]] = torch.from_numpy(
+                    loudness_normalize(wav)
+                ).pin_memory()
 
         if missing:
             msg = f"[{algo}] missing outputs for {len(missing)} speaker(s)"
@@ -212,7 +230,9 @@ def run_experiment(
                         continue
 
                     if verbose:
-                        print(f"    Processing mixture {k+1}/{len(mixture_entries)} for {metric_type}")
+                        print(
+                            f"Processing mixture {k+1}/{len(mixture_entries)} for {metric_type}"
+                        )
 
                     all_signals_mix = []
                     all_masks_mix = []
@@ -224,10 +244,18 @@ def run_experiment(
                         # Build appropriate batch for PS or PM
                         if metric_type == "PS":
                             # PS uses normal distortions
-                            dists = [loudness_normalize(d) for d in apply_distortions(all_refs[s].numpy(), "all")]
+                            dists = [
+                                loudness_normalize(d)
+                                for d in apply_distortions(all_refs[s].numpy(), "all")
+                            ]
                         else:
                             # PM uses advanced distortions
-                            dists = [loudness_normalize(d) for d in apply_adv_distortions(all_refs[s].numpy(), "all")]
+                            dists = [
+                                loudness_normalize(d)
+                                for d in apply_adv_distortions(
+                                    all_refs[s].numpy(), "all"
+                                )
+                            ]
 
                         sigs = [all_refs[s].numpy(), all_outs[s].numpy()] + dists
                         lbls = ["ref", "out"] + [f"d{i}" for i in range(len(dists))]
@@ -238,8 +266,13 @@ def run_experiment(
                         all_labels_mix.extend([f"{s}-{l}" for l in lbls])
 
                     try:
-                        embeddings = embed_batch(all_signals_mix, all_masks_mix,
-                                               model_wrapper, layer_eff, use_mlm=False)
+                        embeddings = embed_batch(
+                            all_signals_mix,
+                            all_masks_mix,
+                            model_wrapper,
+                            layer_eff,
+                            use_mlm=False,
+                        )
                         if embeddings.numel() > 0:
                             embs_by_mix[k] = embeddings
                             labels_by_mix[k] = all_labels_mix
@@ -255,7 +288,9 @@ def run_experiment(
                 if verbose:
                     print(f"    Computing {metric_type} scores for {mname}...")
 
-                with ThreadPoolExecutor(max_workers=min(4, ngpu*2 if ngpu>0 else 2)) as executor:
+                with ThreadPoolExecutor(
+                    max_workers=min(4, ngpu * 2 if ngpu > 0 else 2)
+                ) as executor:
                     for k in range(len(mixture_entries)):
                         if k not in embs_by_mix:
                             continue
@@ -265,15 +300,17 @@ def run_experiment(
                         def process_frame(f):
                             try:
                                 if add_ci:
-                                    coords_d, coords_c, eigvals, k_sub_gauss = gpu_distributor.execute_on_gpu(
-                                        diffusion_map_torch,
-                                        embs_by_mix[k][:, f, :].numpy(),
-                                        labels_by_mix[k],
-                                        alpha=1.0,
-                                        eig_solver="full",
-                                        return_eigs=True,
-                                        return_complement=True,
-                                        return_cval=add_ci,
+                                    coords_d, coords_c, eigvals, k_sub_gauss = (
+                                        gpu_distributor.execute_on_gpu(
+                                            diffusion_map_torch,
+                                            embs_by_mix[k][:, f, :].numpy(),
+                                            labels_by_mix[k],
+                                            alpha=1.0,
+                                            eig_solver="full",
+                                            return_eigs=True,
+                                            return_complement=True,
+                                            return_cval=add_ci,
+                                        )
                                     )
                                 else:
                                     coords_d = gpu_distributor.execute_on_gpu(
@@ -291,20 +328,32 @@ def run_experiment(
                                     k_sub_gauss = 1
 
                                 if metric_type == "PS":
-                                    score = compute_ps(coords_d, labels_by_mix[k], max_gpus)
+                                    score = compute_ps(
+                                        coords_d, labels_by_mix[k], max_gpus
+                                    )
                                     bias = prob = None
                                     if add_ci:
                                         bias, prob = ps_ci_components_full(
-                                            coords_d, coords_c, eigvals, labels_by_mix[k], delta=DEFAULT_DELTA_CI
+                                            coords_d,
+                                            coords_c,
+                                            eigvals,
+                                            labels_by_mix[k],
+                                            delta=DEFAULT_DELTA_CI,
                                         )
                                     return f, "PS", score, bias, prob
                                 else:
-                                    score = compute_pm(coords_d, labels_by_mix[k], "gamma", max_gpus)
+                                    score = compute_pm(
+                                        coords_d, labels_by_mix[k], "gamma", max_gpus
+                                    )
                                     bias = prob = None
                                     if add_ci:
                                         bias, prob = pm_ci_components_full(
-                                            coords_d, coords_c, eigvals, labels_by_mix[k],
-                                            delta=DEFAULT_DELTA_CI, K=k_sub_gauss
+                                            coords_d,
+                                            coords_c,
+                                            eigvals,
+                                            labels_by_mix[k],
+                                            delta=DEFAULT_DELTA_CI,
+                                            K=k_sub_gauss,
                                         )
                                     return f, "PM", score, bias, prob
 
@@ -342,6 +391,7 @@ def run_experiment(
             print(f"  Saving results for {algo}...")
 
         for m in models:
+
             def _pad(vec, n):
                 return vec + [np.nan] * (n - len(vec))
 
@@ -349,11 +399,13 @@ def run_experiment(
             for s in ordered_speakers:
                 max_len = max(max_len, len(ps_ts[m][s]), len(pm_ts[m][s]))
 
-            pd.DataFrame({s: _pad(ps_ts[m][s], max_len) for s in ordered_speakers}) \
-              .to_csv(os.path.join(algo_dir, f"ps_scores_{m}.csv"), index=False)
+            pd.DataFrame(
+                {s: _pad(ps_ts[m][s], max_len) for s in ordered_speakers}
+            ).to_csv(os.path.join(algo_dir, f"ps_scores_{m}.csv"), index=False)
 
-            pd.DataFrame({s: _pad(pm_ts[m][s], max_len) for s in ordered_speakers}) \
-              .to_csv(os.path.join(algo_dir, f"pm_scores_{m}.csv"), index=False)
+            pd.DataFrame(
+                {s: _pad(pm_ts[m][s], max_len) for s in ordered_speakers}
+            ).to_csv(os.path.join(algo_dir, f"pm_scores_{m}.csv"), index=False)
 
             if add_ci:
                 ci_cols = {}

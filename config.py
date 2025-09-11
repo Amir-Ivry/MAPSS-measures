@@ -1,5 +1,7 @@
 """Configuration settings."""
+
 import os
+
 import torch
 
 # Audio settings
@@ -18,6 +20,6 @@ DEFAULT_ADD_CI = True
 DEFAULT_DELTA_CI = 0.05
 
 # CUDA performance hints
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:32,expandable_segments:True'
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:32,expandable_segments:True"
 torch.backends.cudnn.benchmark = True
 torch.backends.cudnn.deterministic = False

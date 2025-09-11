@@ -1,11 +1,14 @@
 """Metrics computation preserving ALL original functionality including CI."""
+
 import math
-import torch
+
 import numpy as np
-from scipy.stats import gamma
+import torch
 from scipy.special import gammaincc
+from scipy.stats import gamma
+
 from config import COV_TOL, DEFAULT_DELTA_CI
-from utils import safe_cov_torch, mahalanobis_torch, get_gpu_count
+from utils import get_gpu_count, mahalanobis_torch, safe_cov_torch
 
 
 def pm_tail_gamma(d_out_sq, sq_dists):
@@ -14,7 +17,7 @@ def pm_tail_gamma(d_out_sq, sq_dists):
     var = sq_dists.var(unbiased=True).item()
     if var == 0.0:
         return 1.0
-    k = (mu ** 2) / var
+    k = (mu**2) / var
     theta = var / mu
     return float(1.0 - gamma.cdf(d_out_sq, a=k, scale=theta))
 
@@ -26,20 +29,33 @@ def pm_tail_rank(d_out_sq, sq_dists):
     return 1.0 - (rank + 0.5) / (n + 1.0)
 
 
-def diffusion_map_torch(X_np, labels_by_mix, *, cutoff=0.99, tol=1e-3, diffusion_time=1,
-                        alpha=0.0, eig_solver="lobpcg", k=None, device=None,
-                        return_eigs=False, return_complement=False, return_cval=False):
+def diffusion_map_torch(
+    X_np,
+    labels_by_mix,
+    *,
+    cutoff=0.99,
+    tol=1e-3,
+    diffusion_time=1,
+    alpha=0.0,
+    eig_solver="lobpcg",
+    k=None,
+    device=None,
+    return_eigs=False,
+    return_complement=False,
+    return_cval=False,
+):
     """Diffusion map computation exactly as original."""
-    device = device or ('cuda:0' if torch.cuda.is_available() else 'cpu')
+    device = device or ("cuda:0" if torch.cuda.is_available() else "cpu")
     X = torch.as_tensor(X_np, dtype=torch.float32, device=device)
     N = X.shape[0]
 
-    if device != 'cpu' and torch.cuda.is_available():
+    if device != "cpu" and torch.cuda.is_available():
         stream = torch.cuda.Stream(device=device)
         ctx_dev = torch.cuda.device(device)
         ctx_stream = torch.cuda.stream(stream)
     else:
         from contextlib import nullcontext
+
         stream = None
         ctx_dev = nullcontext()
         ctx_stream = nullcontext()
@@ -57,7 +73,9 @@ def diffusion_map_torch(X_np, labels_by_mix, *, cutoff=0.99, tol=1e-3, diffusion
             else:
                 D2 = torch.cdist(X, X).pow_(2)
 
-            i, j = torch.triu_indices(N, N, offset=1, device=None if device == 'cpu' else device)
+            i, j = torch.triu_indices(
+                N, N, offset=1, device=None if device == "cpu" else device
+            )
             eps = torch.median(D2[i, j])
             K = torch.exp(-D2 / (2 * eps))
             d = K.sum(dim=1)
@@ -73,13 +91,15 @@ def diffusion_map_torch(X_np, labels_by_mix, *, cutoff=0.99, tol=1e-3, diffusion
             if eig_solver == "lobpcg":
                 m = k if k is not None else min(N - 1, 50)
                 init = torch.randn(N, m, device=device)
-                vals, vecs = torch.lobpcg(K_sym, k=m, X=init, niter=200, tol=tol, largest=True)
+                vals, vecs = torch.lobpcg(
+                    K_sym, k=m, X=init, niter=200, tol=tol, largest=True
+                )
             elif eig_solver == "full":
                 vals, vecs = torch.linalg.eigh(K_sym)
                 vals, vecs = vals.flip(0), vecs.flip(1)
                 if k is not None:
-                    vecs = vecs[:, :k + 1]
-                    vals = vals[:k + 1]
+                    vecs = vecs[:, : k + 1]
+                    vals = vals[: k + 1]
             else:
                 raise ValueError(f"Unknown eig_solver '{eig_solver}'")
 
@@ -93,8 +113,12 @@ def diffusion_map_torch(X_np, labels_by_mix, *, cutoff=0.99, tol=1e-3, diffusion
             Psi_rest = psi_all[:, L:]
 
             if return_cval:
-                indices_with_out = [ii for ii, name in enumerate(labels_by_mix) if "out" in name]
-                valid_idx = torch.tensor([ii for ii in range(N) if ii not in indices_with_out], device=device)
+                indices_with_out = [
+                    ii for ii, name in enumerate(labels_by_mix) if "out" in name
+                ]
+                valid_idx = torch.tensor(
+                    [ii for ii in range(N) if ii not in indices_with_out], device=device
+                )
                 pi_min = d[valid_idx].min() / d[valid_idx].sum()
                 c_val = lam_pow[0] * pi_min.rsqrt() / math.log(2.0)
 
@@ -102,7 +126,12 @@ def diffusion_map_torch(X_np, labels_by_mix, *, cutoff=0.99, tol=1e-3, diffusion
                 stream.synchronize()
 
     if return_complement and return_eigs and return_cval:
-        return (Psi.cpu().numpy(), Psi_rest.cpu().numpy(), lam.cpu().numpy(), float(c_val))
+        return (
+            Psi.cpu().numpy(),
+            Psi_rest.cpu().numpy(),
+            lam.cpu().numpy(),
+            float(c_val),
+        )
     if return_complement and return_eigs:
         return Psi.cpu().numpy(), Psi_rest.cpu().numpy(), lam.cpu().numpy()
     if return_complement:
@@ -118,7 +147,7 @@ def compute_ps(coords, labels, max_gpus=None):
 
     if ngpu == 0:
         coords_t = torch.tensor(coords)
-        spks_here = sorted({l.split('-')[0] for l in labels})
+        spks_here = sorted({l.split("-")[0] for l in labels})
         out = {}
         for s in spks_here:
             idxs = [i for i, l in enumerate(labels) if l.startswith(s)]
@@ -132,19 +161,23 @@ def compute_ps(coords, labels, max_gpus=None):
             for o in spks_here:
                 if o == s:
                     continue
-                o_idxs = [i for i, l in enumerate(labels) if l.startswith(o) and not l.endswith("-out")]
+                o_idxs = [
+                    i
+                    for i, l in enumerate(labels)
+                    if l.startswith(o) and not l.endswith("-out")
+                ]
                 mu_o = coords_t[o_idxs].mean(0)
                 inv_o = torch.linalg.inv(safe_cov_torch(coords_t[o_idxs]))
                 B_list.append(mahalanobis_torch(coords_t[out_i], mu_o, inv_o))
-            B_min = torch.min(torch.stack(B_list)) if B_list else torch.tensor(0.)
+            B_min = torch.min(torch.stack(B_list)) if B_list else torch.tensor(0.0)
             out[s] = (1 - A / (A + B_min + 1e-6)).item()
         return out
 
     # GPU version
     device = min(ngpu - 1, 1)  # Use second GPU if available
-    device_str = f'cuda:{device}'
+    device_str = f"cuda:{device}"
     coords_t = torch.tensor(coords, device=device_str)
-    spks_here = sorted({l.split('-')[0] for l in labels})
+    spks_here = sorted({l.split("-")[0] for l in labels})
     out = {}
 
     stream = torch.cuda.Stream(device=device_str)
@@ -162,11 +195,19 @@ def compute_ps(coords, labels, max_gpus=None):
                 for o in spks_here:
                     if o == s:
                         continue
-                    o_idxs = [i for i, l in enumerate(labels) if l.startswith(o) and not l.endswith("-out")]
+                    o_idxs = [
+                        i
+                        for i, l in enumerate(labels)
+                        if l.startswith(o) and not l.endswith("-out")
+                    ]
                     mu_o = coords_t[o_idxs].mean(0)
                     inv_o = torch.linalg.inv(safe_cov_torch(coords_t[o_idxs]))
                     B_list.append(mahalanobis_torch(coords_t[out_i], mu_o, inv_o))
-                B_min = torch.min(torch.stack(B_list)) if B_list else torch.tensor(0., device=device_str)
+                B_min = (
+                    torch.min(torch.stack(B_list))
+                    if B_list
+                    else torch.tensor(0.0, device=device_str)
+                )
                 out[s] = (1 - A / (A + B_min + 1e-6)).item()
             stream.synchronize()
     return out
@@ -178,7 +219,7 @@ def compute_pm(coords, labels, pm_method, max_gpus=None):
 
     if ngpu == 0:
         coords_t = torch.tensor(coords)
-        spks_here = sorted({l.split('-')[0] for l in labels})
+        spks_here = sorted({l.split("-")[0] for l in labels})
         out = {}
         for s in spks_here:
             idxs = [i for i, l in enumerate(labels) if l.startswith(s)]
@@ -195,17 +236,23 @@ def compute_pm(coords, labels, pm_method, max_gpus=None):
             if torch.linalg.matrix_rank(cov) < D:
                 cov += torch.eye(D) * COV_TOL
             inv = torch.linalg.inv(cov)
-            sq_dists = torch.stack([mahalanobis_torch(coords_t[i], ref_v, inv) ** 2 for i in d_idx])
+            sq_dists = torch.stack(
+                [mahalanobis_torch(coords_t[i], ref_v, inv) ** 2 for i in d_idx]
+            )
             d_out_sq = float(mahalanobis_torch(coords_t[out_i], ref_v, inv) ** 2)
-            pm_score = pm_tail_rank(d_out_sq, sq_dists) if pm_method == "rank" else pm_tail_gamma(d_out_sq, sq_dists)
+            pm_score = (
+                pm_tail_rank(d_out_sq, sq_dists)
+                if pm_method == "rank"
+                else pm_tail_gamma(d_out_sq, sq_dists)
+            )
             out[s] = float(np.clip(pm_score, 0.0, 1.0))
         return out
 
     # GPU version
     device = min(ngpu - 1, 1)
-    device_str = f'cuda:{device}'
+    device_str = f"cuda:{device}"
     coords_t = torch.tensor(coords, device=device_str)
-    spks_here = sorted({l.split('-')[0] for l in labels})
+    spks_here = sorted({l.split("-")[0] for l in labels})
     out = {}
 
     stream = torch.cuda.Stream(device=device_str)
@@ -226,16 +273,23 @@ def compute_pm(coords, labels, pm_method, max_gpus=None):
                 if torch.linalg.matrix_rank(cov) < D:
                     cov += torch.eye(D, device=device_str) * COV_TOL
                 inv = torch.linalg.inv(cov)
-                sq_dists = torch.stack([mahalanobis_torch(coords_t[i], ref_v, inv) ** 2 for i in d_idx])
+                sq_dists = torch.stack(
+                    [mahalanobis_torch(coords_t[i], ref_v, inv) ** 2 for i in d_idx]
+                )
                 d_out_sq = float(mahalanobis_torch(coords_t[out_i], ref_v, inv) ** 2)
-                pm_score = pm_tail_rank(d_out_sq, sq_dists) if pm_method == "rank" else pm_tail_gamma(d_out_sq,
-                                                                                                      sq_dists)
+                pm_score = (
+                    pm_tail_rank(d_out_sq, sq_dists)
+                    if pm_method == "rank"
+                    else pm_tail_gamma(d_out_sq, sq_dists)
+                )
                 out[s] = float(np.clip(pm_score, 0.0, 1.0))
             stream.synchronize()
     return out
 
 
-def pm_ci_components_full(coords_d, coords_rest, eigvals, labels, *, delta=0.05, K=1.0, C1=1.0, C2=1.0):
+def pm_ci_components_full(
+    coords_d, coords_rest, eigvals, labels, *, delta=0.05, K=1.0, C1=1.0, C2=1.0
+):
     """PM CI components exactly as original - complete implementation."""
     _EPS = 1e-12
 
@@ -245,12 +299,16 @@ def pm_ci_components_full(coords_d, coords_rest, eigvals, labels, *, delta=0.05,
     D = coords_d.shape[1]
     m = coords_rest.shape[1]
     if m == 0:
-        z = {s: 0.0 for s in {l.split('-')[0] for l in labels}}
+        z = {s: 0.0 for s in {l.split("-")[0] for l in labels}}
         return z.copy(), z.copy()
 
-    X_d = torch.tensor(coords_d, device='cuda:0' if torch.cuda.is_available() else 'cpu')
-    X_c = torch.tensor(coords_rest, device='cuda:0' if torch.cuda.is_available() else 'cpu')
-    spk_ids = sorted({l.split('-')[0] for l in labels})
+    X_d = torch.tensor(
+        coords_d, device="cuda:0" if torch.cuda.is_available() else "cpu"
+    )
+    X_c = torch.tensor(
+        coords_rest, device="cuda:0" if torch.cuda.is_available() else "cpu"
+    )
+    spk_ids = sorted({l.split("-")[0] for l in labels})
     bias_ci = {}
     prob_ci = {}
 
@@ -275,7 +333,11 @@ def pm_ci_components_full(coords_d, coords_rest, eigvals, labels, *, delta=0.05,
         C_dc = D_mat.T @ C_mat / (n_p - 1)
         inv_Sigma_d = torch.linalg.inv(Sigma_d)
 
-        S_i = Sigma_c - C_dc.T @ inv_Sigma_d @ C_dc + torch.eye(X_c.shape[1], device=X_c.device) * 1e-9
+        S_i = (
+            Sigma_c
+            - C_dc.T @ inv_Sigma_d @ C_dc
+            + torch.eye(X_c.shape[1], device=X_c.device) * 1e-9
+        )
         S_inv = torch.linalg.inv(S_i)
 
         diff_out_d = X_d[out_i] - ref_d
@@ -293,9 +355,9 @@ def pm_ci_components_full(coords_d, coords_rest, eigvals, labels, *, delta=0.05,
         delta_Gi_p = torch.sum(R_p @ S_inv * R_p, dim=1)
         delta_Gi_mu_max = float(delta_Gi_p.max())
 
-        mah_sq = torch.stack([
-            (X_d[i] - ref_d) @ inv_Sigma_d @ (X_d[i] - ref_d) for i in dist_is
-        ])
+        mah_sq = torch.stack(
+            [(X_d[i] - ref_d) @ inv_Sigma_d @ (X_d[i] - ref_d) for i in dist_is]
+        )
         mu_g = float(mah_sq.mean())
         sigma2_g = float(mah_sq.var(unbiased=True) + 1e-12)
         sigma_g = math.sqrt(sigma2_g)
@@ -309,9 +371,9 @@ def pm_ci_components_full(coords_d, coords_rest, eigvals, labels, *, delta=0.05,
         else:
             factor = delta_Gi_mu_max * n_p / (n_p - 1)
             delta_Gi_k = 1.0 * factor * (mu_full + mu_g) / sigma2_g
-            delta_Gi_theta = 1.0 * factor * (sigma2_full + sigma2_g) / (mu_g ** 2 + 1e-9)
+            delta_Gi_theta = 1.0 * factor * (sigma2_full + sigma2_g) / (mu_g**2 + 1e-9)
 
-        k_d = (mu_g ** 2) / max(sigma2_g, 1e-12)
+        k_d = (mu_g**2) / max(sigma2_g, 1e-12)
         theta_d = sigma2_g / max(mu_g, 1e-12)
         a_d = float(diff_out_d @ inv_Sigma_d @ diff_out_d)
 
@@ -332,11 +394,13 @@ def pm_ci_components_full(coords_d, coords_rest, eigvals, labels, *, delta=0.05,
         R_sq = float(mah_sq.max()) + 1e-12
         log_term = math.log(6.0 / delta)
         eps_mu = math.sqrt(2 * sigma2_g * log_term / n_p) + 3 * R_sq * log_term / n_p
-        eps_sigma = math.sqrt(2 * R_sq ** 2 * log_term / n_p) + 3 * R_sq ** 2 * log_term / n_p
+        eps_sigma = (
+            math.sqrt(2 * R_sq**2 * log_term / n_p) + 3 * R_sq**2 * log_term / n_p
+        )
 
         g1_x = 2.0 * mu_g / (sigma2_g + 1e-9)
-        g1_y = -2.0 * mu_g ** 2 / (sigma_g ** 3 + 1e-9)
-        g2_x = -sigma2_g / (mu_g ** 2 + 1e-9)
+        g1_y = -2.0 * mu_g**2 / (sigma_g**3 + 1e-9)
+        g2_x = -sigma2_g / (mu_g**2 + 1e-9)
         g2_y = 2.0 * sigma_g / (mu_g + 1e-9)
 
         delta_k = min(abs(g1_x) * eps_mu + abs(g1_y) * eps_sigma, 0.5 * k_d)
@@ -365,7 +429,9 @@ def ps_ci_components_full(coords_d, coords_rest, eigvals, labels, *, delta=0.05)
 
     def _rel_cov_dev(lam_max, trace, delta, n_eff, C=1.0):
         r = trace / lam_max
-        abs_dev = C * lam_max * (math.sqrt(r / n_eff) + (r + math.log(2 / delta)) / n_eff)
+        abs_dev = (
+            C * lam_max * (math.sqrt(r / n_eff) + (r + math.log(2 / delta)) / n_eff)
+        )
         return abs_dev / lam_max
 
     def _maha_eps_m(a_hat, lam_min, lam_max, mean_dev, rel_cov_dev):
@@ -376,12 +442,16 @@ def ps_ci_components_full(coords_d, coords_rest, eigvals, labels, *, delta=0.05)
     D = coords_d.shape[1]
     m = coords_rest.shape[1]
     if m == 0:
-        z = {s: 0.0 for s in set(l.split('-')[0] for l in labels)}
+        z = {s: 0.0 for s in set(l.split("-")[0] for l in labels)}
         return z.copy(), z.copy()
 
-    X_d = torch.tensor(coords_d, device='cuda:0' if torch.cuda.is_available() else 'cpu')
-    X_c = torch.tensor(coords_rest, device='cuda:0' if torch.cuda.is_available() else 'cpu')
-    spk_ids = sorted({l.split('-')[0] for l in labels})
+    X_d = torch.tensor(
+        coords_d, device="cuda:0" if torch.cuda.is_available() else "cpu"
+    )
+    X_c = torch.tensor(
+        coords_rest, device="cuda:0" if torch.cuda.is_available() else "cpu"
+    )
+    spk_ids = sorted({l.split("-")[0] for l in labels})
     bias = {}
     prob = {}
 
@@ -406,15 +476,23 @@ def ps_ci_components_full(coords_d, coords_rest, eigvals, labels, *, delta=0.05)
         A_d = float(mahalanobis_torch(X_d[out_i], mu_d, inv_Sd))
 
         r_i = diff_c - C_dc.T @ inv_Sd @ diff_d
-        S_i = Sigma_c - C_dc.T @ inv_Sd @ C_dc + torch.eye(X_c.shape[1], device=X_c.device) * 1e-9
+        S_i = (
+            Sigma_c
+            - C_dc.T @ inv_Sd @ C_dc
+            + torch.eye(X_c.shape[1], device=X_c.device) * 1e-9
+        )
         term_i = math.sqrt(float(r_i @ torch.linalg.solve(S_i, r_i)))
 
-        B_d, term_j = float('inf'), 0.0
+        B_d, term_j = float("inf"), 0.0
         Sig_o = None
         for o in spk_ids:
             if o == s:
                 continue
-            o_idxs = [i for i, l in enumerate(labels) if l.startswith(o) and not l.endswith('-out')]
+            o_idxs = [
+                i
+                for i, l in enumerate(labels)
+                if l.startswith(o) and not l.endswith("-out")
+            ]
             muo_d = X_d[o_idxs].mean(0)
             muo_c = X_c[o_idxs].mean(0)
             Sig_o_tmp = safe_cov_torch(X_d[o_idxs])
@@ -426,14 +504,19 @@ def ps_ci_components_full(coords_d, coords_rest, eigvals, labels, *, delta=0.05)
                 Sig_o = Sig_o_tmp
                 diff_do = X_d[out_i] - muo_d
                 diff_co = X_c[out_i] - muo_c
-                C_oc = (X_d[o_idxs] - muo_d).T @ (X_c[o_idxs] - muo_c) / (len(o_idxs) - 1)
+                C_oc = (
+                    (X_d[o_idxs] - muo_d).T @ (X_c[o_idxs] - muo_c) / (len(o_idxs) - 1)
+                )
                 r_j = diff_co - C_oc.T @ inv_So @ diff_do
-                S_j = safe_cov_torch(X_c[o_idxs]) - C_oc.T @ inv_So @ C_oc + torch.eye(X_c.shape[1],
-                                                                                       device=X_c.device) * 1e-9
+                S_j = (
+                    safe_cov_torch(X_c[o_idxs])
+                    - C_oc.T @ inv_So @ C_oc
+                    + torch.eye(X_c.shape[1], device=X_c.device) * 1e-9
+                )
                 term_j = math.sqrt(float(r_j @ torch.linalg.solve(S_j, r_j)))
 
-        denom = (A_d + B_d)
-        bias[s] = (B_d * term_i + A_d * term_j) / (denom ** 2)
+        denom = A_d + B_d
+        bias[s] = (B_d * term_i + A_d * term_j) / (denom**2)
 
         if Sig_o is not None:
             lam_min_o = torch.linalg.eigvalsh(Sig_o).min().clamp_min(1e-9).item()
@@ -445,12 +528,20 @@ def ps_ci_components_full(coords_d, coords_rest, eigvals, labels, *, delta=0.05)
             lam_min_eff = max(lam_min, RIDGE * lam_max.item())
             lam_min_o_eff = max(lam_min_o, RIDGE * lam_max_o)
 
-            eps_i_sg = _maha_eps_m(A_d, lam_min_eff, lam_max.item(),
-                                   _mean_dev(lam_max.item(), delta / 2, n_eff),
-                                   _rel_cov_dev(lam_max.item(), trace, delta / 2, n_eff))
-            eps_j_sg = _maha_eps_m(B_d, lam_min_o_eff, lam_max_o,
-                                   _mean_dev(lam_max_o, delta / 2, n_eff),
-                                   _rel_cov_dev(lam_max_o, trace_o, delta / 2, n_eff))
+            eps_i_sg = _maha_eps_m(
+                A_d,
+                lam_min_eff,
+                lam_max.item(),
+                _mean_dev(lam_max.item(), delta / 2, n_eff),
+                _rel_cov_dev(lam_max.item(), trace, delta / 2, n_eff),
+            )
+            eps_j_sg = _maha_eps_m(
+                B_d,
+                lam_min_o_eff,
+                lam_max_o,
+                _mean_dev(lam_max_o, delta / 2, n_eff),
+                _rel_cov_dev(lam_max_o, trace_o, delta / 2, n_eff),
+            )
 
             grad_l2 = math.hypot(A_d, B_d) / (A_d + B_d) ** 2
             ps_radius = grad_l2 * math.hypot(eps_i_sg, eps_j_sg)
