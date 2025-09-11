@@ -1,4 +1,3 @@
-"""Speech evaluation package."""
 
 from engine import run_experiment
 

@@ -1,4 +1,3 @@
-"""Metrics computation preserving ALL original functionality including CI."""
 
 import math
 
@@ -142,7 +141,6 @@ def diffusion_map_torch(
 
 
 def compute_ps(coords, labels, max_gpus=None):
-    """Compute PS exactly as original."""
     ngpu = get_gpu_count(max_gpus)
 
     if ngpu == 0:
@@ -214,7 +212,6 @@ def compute_ps(coords, labels, max_gpus=None):
 
 
 def compute_pm(coords, labels, pm_method, max_gpus=None):
-    """Compute PM exactly as original."""
     ngpu = get_gpu_count(max_gpus)
 
     if ngpu == 0:

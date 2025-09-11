@@ -33,30 +33,27 @@ def run_experiment(
     experiment_id=None,
     layer=DEFAULT_LAYER,
     add_ci=DEFAULT_ADD_CI,
+    alpha=DEFAULT_ALPHA,
     seed=42,
     on_missing="skip",
     verbose=False,
     max_gpus=None,
 ):
 
-    # Initialize
     gpu_distributor = GPUWorkDistributor(max_gpus)
     ngpu = get_gpu_count(max_gpus)
 
     if on_missing not in {"skip", "error"}:
         raise ValueError("on_missing must be 'skip' or 'error'.")
 
-    # Set seeds
     torch.manual_seed(seed)
     random.seed(seed)
     np.random.seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
 
-    # Canonicalize manifest
     canon_mix = canonicalize_mixtures(mixtures, systems=systems)
 
-    # Build per-speaker entries
     mixture_entries = []
     for m in canon_mix:
         entries = []
@@ -67,7 +64,6 @@ def run_experiment(
             )
         mixture_entries.append(entries)
 
-    # Assignment of system outputs
     for m, mix_entries in zip(canon_mix, mixture_entries):
         for algo, out_list in (m.systems or {}).items():
             mapping = assign_outputs_to_refs_by_corr(
@@ -78,7 +74,6 @@ def run_experiment(
                 if j is not None:
                     e["outs"][algo] = out_list[j]
 
-    # Algorithms to run
     if algos is None:
         algos_to_run = sorted(
             {algo for m in canon_mix for algo in (m.systems or {}).keys()}
@@ -86,16 +81,15 @@ def run_experiment(
     else:
         algos_to_run = list(algos)
 
-    # Experiment folder
     exp_id = experiment_id or datetime.now().strftime("%Y%m%d_%H%M%S")
     exp_root = os.path.join(RESULTS_ROOT, f"experiment_{exp_id}")
     os.makedirs(exp_root, exist_ok=True)
 
-    # Save parameters
     params = {
         "models": models,
         "layer": layer,
         "add_ci": add_ci,
+        "alpha": alpha,
         "seed": seed,
         "batch_size": BATCH_SIZE,
         "ngpu": ngpu,
@@ -105,7 +99,6 @@ def run_experiment(
     with open(os.path.join(exp_root, "params.json"), "w") as f:
         json.dump(params, f, indent=2)
 
-    # Save canonical manifest
     canon_struct = [
         {
             "mixture_id": m.mixture_id,
@@ -127,7 +120,6 @@ def run_experiment(
     clear_gpu_memory()
     get_gpu_memory_info(verbose)
 
-    # Flatten and load refs
     flat_entries = [e for mix in mixture_entries for e in mix]
     all_refs = {}
 
@@ -137,7 +129,6 @@ def run_experiment(
         wav, _ = librosa.load(str(e["ref"]), sr=SR)
         all_refs[e["id"]] = torch.from_numpy(loudness_normalize(wav)).pin_memory()
 
-    # Per-mixture voiced masks
     if verbose:
         print("Computing voiced masks...")
 
@@ -164,7 +155,6 @@ def run_experiment(
 
     ordered_speakers = [e["id"] for e in flat_entries]
 
-    # Process algorithms
     for algo_idx, algo in enumerate(algos_to_run):
         if verbose:
             print(f"\nProcessing Algorithm {algo_idx+1}/{len(algos_to_run)}: {algo}")
@@ -172,7 +162,6 @@ def run_experiment(
         algo_dir = os.path.join(exp_root, algo)
         os.makedirs(algo_dir, exist_ok=True)
 
-        # Load outputs
         all_outs = {}
         missing = []
 
@@ -201,7 +190,6 @@ def run_experiment(
                 warnings.warn(f"[{algo}] No outputs provided. Skipping algorithm.")
             continue
 
-        # Accumulators
         ps_ts = {m: {s: [] for s in ordered_speakers} for m in models}
         pm_ts = {m: {s: [] for s in ordered_speakers} for m in models}
         ps_bias_ts = {m: {s: [] for s in ordered_speakers} for m in models}
@@ -209,12 +197,10 @@ def run_experiment(
         pm_bias_ts = {m: {s: [] for s in ordered_speakers} for m in models}
         pm_prob_ts = {m: {s: [] for s in ordered_speakers} for m in models}
 
-        # Process models
         for model_idx, mname in enumerate(models):
             if verbose:
                 print(f"  Processing Model {model_idx+1}/{len(models)}: {mname}")
 
-            # Build separate batches for PS (normal distortions) and PM (advanced distortions)
             for metric_type in ["PS", "PM"]:
                 clear_gpu_memory()
                 model_wrapper, layer_eff = load_model(mname, layer, max_gpus)
@@ -223,7 +209,6 @@ def run_experiment(
                 embs_by_mix = {}
                 labels_by_mix = {}
 
-                # Process mixtures
                 for k, mix in enumerate(mixture_entries):
                     speakers_this_mix = [e for e in mix if e["id"] in all_outs]
                     if not speakers_this_mix:
@@ -241,15 +226,12 @@ def run_experiment(
                     for e in speakers_this_mix:
                         s = e["id"]
 
-                        # Build appropriate batch for PS or PM
                         if metric_type == "PS":
-                            # PS uses normal distortions
                             dists = [
                                 loudness_normalize(d)
                                 for d in apply_distortions(all_refs[s].numpy(), "all")
                             ]
                         else:
-                            # PM uses advanced distortions
                             dists = [
                                 loudness_normalize(d)
                                 for d in apply_adv_distortions(
@@ -284,7 +266,6 @@ def run_experiment(
                     del all_signals_mix, all_masks_mix, all_labels_mix
                     clear_gpu_memory()
 
-                # Compute metrics
                 if verbose:
                     print(f"    Computing {metric_type} scores for {mname}...")
 
@@ -305,7 +286,7 @@ def run_experiment(
                                             diffusion_map_torch,
                                             embs_by_mix[k][:, f, :].numpy(),
                                             labels_by_mix[k],
-                                            alpha=1.0,
+                                            alpha=alpha,
                                             eig_solver="full",
                                             return_eigs=True,
                                             return_complement=True,
@@ -317,7 +298,7 @@ def run_experiment(
                                         diffusion_map_torch,
                                         embs_by_mix[k][:, f, :].numpy(),
                                         labels_by_mix[k],
-                                        alpha=1.0,
+                                        alpha=alpha,
                                         eig_solver="full",
                                         return_eigs=False,
                                         return_complement=False,
@@ -386,7 +367,6 @@ def run_experiment(
                 del model_wrapper
                 clear_gpu_memory()
 
-        # Save results
         if verbose:
             print(f"  Saving results for {algo}...")
 

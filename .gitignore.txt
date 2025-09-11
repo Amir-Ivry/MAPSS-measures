@@ -1,7 +1,21 @@
-pycache/
+# Byte-compiled / cache
+__pycache__/
 *.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
 venv/
+.dev_local_venv/
+
+# Results and artifacts
 results/
+
+# Audio files (large assets)
 *.wav
+
+# OS / IDE files
 .vscode/
 .DS_Store
+Thumbs.db
+.idea/

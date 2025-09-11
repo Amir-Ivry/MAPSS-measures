@@ -1,4 +1,3 @@
-"""Utility functions preserving all original functionality."""
 
 import gc
 import threading
@@ -14,7 +13,6 @@ warnings.filterwarnings("ignore", message="Some weights of Wav2Vec2Model")
 
 
 def get_gpu_count(max_gpus=None):
-    """Get number of GPUs to use."""
     ngpu = torch.cuda.device_count()
     if max_gpus is not None:
         ngpu = min(ngpu, max_gpus)
@@ -22,7 +20,6 @@ def get_gpu_count(max_gpus=None):
 
 
 def clear_gpu_memory():
-    """Clear GPU memory exactly as in original."""
     for i in range(torch.cuda.device_count()):
         with torch.cuda.device(i):
             torch.cuda.empty_cache()
@@ -31,7 +28,6 @@ def clear_gpu_memory():
 
 
 def get_gpu_memory_info(verbose=False):
-    """Get GPU memory information."""
     if not verbose:
         return
     for i in range(torch.cuda.device_count()):
@@ -43,7 +39,6 @@ def get_gpu_memory_info(verbose=False):
 
 
 def write_wav_16bit(path, x, sr=16000):
-    """Write WAV file exactly as original."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -57,7 +52,6 @@ def write_wav_16bit(path, x, sr=16000):
 
 
 def safe_corr_np(a, b):
-    """Safe correlation computation from original."""
     L = min(len(a), len(b))
     if L <= 1:
         return 0.0
@@ -74,7 +68,6 @@ def safe_corr_np(a, b):
 
 
 def hungarian(cost):
-    """Hungarian algorithm from original."""
     try:
         return _lsa(cost)
     except Exception:
@@ -96,7 +89,6 @@ def hungarian(cost):
 
 
 class GPUWorkDistributor:
-    """Distribute work across GPUs exactly as original."""
 
     def __init__(self, max_gpus=None):
         ngpu = get_gpu_count(max_gpus)
@@ -125,7 +117,6 @@ class GPUWorkDistributor:
 
 @dataclass
 class Mixture:
-    """Mixture data structure."""
 
     mixture_id: str
     refs: list[Path]
@@ -134,7 +125,6 @@ class Mixture:
 
 
 def canonicalize_mixtures(mixtures, systems=None):
-    """Convert mixtures to canonical format exactly as original."""
     canon = []
     if not mixtures:
         return canon
@@ -148,7 +138,6 @@ def canonicalize_mixtures(mixtures, systems=None):
             stem = f"spk{idx:02d}"
         return f"{mixture_id}__{stem}"
 
-    # New style manifest
     if isinstance(mixtures[0], dict):
         for m in mixtures:
             mid = str(m.get("mixture_id") or m.get("id") or "").strip()
@@ -165,7 +154,6 @@ def canonicalize_mixtures(mixtures, systems=None):
             canon.append(Mixture(mid, refs, sysmap, spk_ids))
         return canon
 
-    # Legacy style
     if isinstance(mixtures[0], list):
         for i, group in enumerate(mixtures):
             mid = f"mix_{i:03d}"
@@ -190,7 +178,6 @@ def canonicalize_mixtures(mixtures, systems=None):
 
 
 def random_misalign(sig, sr, max_ms, mode="single", rng=None):
-    """Random misalignment exactly as original."""
     import random
 
     if rng is None:
@@ -218,7 +205,6 @@ def random_misalign(sig, sr, max_ms, mode="single", rng=None):
 
 
 def safe_cov_torch(X):
-    """Safe covariance computation from original."""
     Xc = X - X.mean(dim=0, keepdim=True)
     cov = Xc.T @ Xc / (Xc.shape[0] - 1)
     if torch.linalg.matrix_rank(cov) < cov.shape[0]:
@@ -227,6 +213,5 @@ def safe_cov_torch(X):
 
 
 def mahalanobis_torch(x, mu, inv):
-    """Mahalanobis distance from original."""
     diff = x - mu
     return torch.sqrt(diff @ inv @ diff.T + 1e-6)

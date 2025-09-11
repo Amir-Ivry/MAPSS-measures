@@ -1,4 +1,3 @@
-"""Model loading and embedding - preserves ALL original functionality."""
 
 import queue
 import threading
@@ -11,6 +10,7 @@ from transformers import (
     Wav2Vec2FeatureExtractor,
     Wav2Vec2Model,
     WavLMModel,
+    ASTModel,
 )
 
 from config import BATCH_SIZE, ENERGY_HOP_MS, ENERGY_WIN_MS, SR
@@ -18,7 +18,6 @@ from utils import get_gpu_count
 
 
 class BalancedDualGPUModel:
-    """Load one model per GPU and process in balanced chunks - EXACT from original."""
 
     def __init__(self, model_name, layer, max_gpus=None):
         self.layer = layer
@@ -131,22 +130,21 @@ class BalancedDualGPUModel:
 
 @lru_cache(maxsize=4)
 def get_model_config(layer):
-    """Get model configuration exactly as original."""
     return {
         "raw": (None, None, None),
         "wavlm": ("microsoft/wavlm-large", WavLMModel, layer),
         "wav2vec2": ("facebook/wav2vec2-large-lv60", Wav2Vec2Model, layer),
         "hubert": ("facebook/hubert-large-ll60k", HubertModel, layer),
-        "wav2vec2_xlsr": ("facebook/wav2vec2-large-xlsr-53", Wav2Vec2Model, layer),
         "wavlm_base": ("microsoft/wavlm-base", WavLMModel, layer),
         "wav2vec2_base": ("facebook/wav2vec2-base", Wav2Vec2Model, layer),
         "hubert_base": ("facebook/hubert-base-ls960", HubertModel, layer),
+        "wav2vec2_xlsr": ("facebook/wav2vec2-large-xlsr-53", Wav2Vec2Model, layer),
+        "ast": ("MIT/ast-finetuned-audioset-10-10-0.4593", ASTModel, layer),
     }
 
 
 @lru_cache(maxsize=4)
 def load_model(name, layer, max_gpus=None):
-    """Load model exactly as original."""
     if name.lower() in {"raw", "waveform"}:
         return "raw", layer
 
@@ -171,7 +169,6 @@ def load_model(name, layer, max_gpus=None):
 
 
 def embed_batch_raw(signals, masks_audio):
-    """Raw embedding exactly as original."""
     win = int(ENERGY_WIN_MS * SR / 1000)
     hop = int(ENERGY_HOP_MS * SR / 1000)
     reps, L_max = [], 0
@@ -189,7 +186,6 @@ def embed_batch_raw(signals, masks_audio):
 def embed_batch_single_gpu(
     signals, masks_audio, extractor, model, layer, use_mlm=False
 ):
-    """Single GPU embedding exactly as original."""
     if not signals:
         return torch.empty(0, 0, 0)
     device = next(model.parameters()).device
@@ -216,7 +212,6 @@ def embed_batch_single_gpu(
 
 
 def embed_batch(signals, masks_audio, model_wrapper, layer, use_mlm=False):
-    """Embed batch exactly as original."""
     if model_wrapper == "raw":
         return embed_batch_raw(signals, masks_audio)
     if isinstance(model_wrapper, BalancedDualGPUModel):
