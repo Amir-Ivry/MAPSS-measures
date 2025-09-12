@@ -1,4 +1,4 @@
-"""Configuration settings."""
+"""Configuration settings with memory optimizations."""
 
 import os
 
@@ -6,7 +6,7 @@ import torch
 
 SR = 16_000
 RESULTS_ROOT = "results"
-BATCH_SIZE = 4
+BATCH_SIZE = 2  # Reduced from 4 to avoid OOM
 ENERGY_WIN_MS = 20
 ENERGY_HOP_MS = 20
 SILENCE_RATIO = 0.1
@@ -18,6 +18,15 @@ DEFAULT_ADD_CI = True
 DEFAULT_DELTA_CI = 0.05
 DEFAULT_ALPHA = 1.0
 
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:32,expandable_segments:True"
+# Enhanced memory configuration
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128,expandable_segments:True,garbage_collection_threshold:0.6"
+os.environ["CUDA_LAUNCH_BLOCKING"] = "0"  # Async operations
+
+# Optimize CUDNN settings
 torch.backends.cudnn.benchmark = True
 torch.backends.cudnn.deterministic = False
+torch.backends.cudnn.enabled = True
+
+# Set memory fraction to avoid using all GPU memory
+if torch.cuda.is_available():
+    torch.cuda.set_per_process_memory_fraction(0.8)  # Use only 80% of available memory

@@ -13,8 +13,8 @@ def loudness_normalize(wav, sr=SR, target_lufs=-23.0):
     normalized_wav = pyln.normalize.loudness(wav, loudness, target_lufs)
     peak = np.max(np.abs(normalized_wav))
     if peak > 1.0:
-        normalized_wav = normalized_wav / peak
-    return normalized_wav
+        normalized_wav = normalized_wav / max(peak, 1e-12)
+    return np.clip(normalized_wav, -1.0, 1.0)
 
 
 def frame_rms_torch(sig, win, hop):
@@ -32,9 +32,8 @@ def make_union_voiced_mask(refs_tensors, win, hop):
     lengths = [v.numel() for v in rms_vecs]
     L_max = max(lengths)
     silent_union = torch.zeros(L_max, dtype=torch.bool, device=device)
-    for rms, L in zip(rms_vecs, lengths):
-        ref_idx = lengths.index(L)
-        thr = SILENCE_RATIO * torch.sqrt((refs_tensors[ref_idx] ** 2).mean())
+    for idx, (rms, L) in enumerate(zip(rms_vecs, lengths)):
+        thr = SILENCE_RATIO * torch.sqrt((refs_tensors[idx] ** 2).mean())
         sil = rms <= thr
         silent_union[:L] |= sil
     return ~silent_union

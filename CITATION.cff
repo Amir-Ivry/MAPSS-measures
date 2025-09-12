@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+title: "MAPSS-measures: Perceptual Separation and Match Metrics"
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: "YourLastName"
+    given-names: "YourFirstName"
+    orcid: "https://orcid.org/0000-0000-0000-0000"
+version: "1.0.1"
+date-released: "2025-09-12"

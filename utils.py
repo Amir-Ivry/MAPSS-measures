@@ -7,7 +7,10 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from scipy.optimize import linear_sum_assignment as _lsa
+try:
+    from scipy.optimize import linear_sum_assignment as _lsa  # type: ignore[attr-defined]
+except Exception:
+    _lsa = None  # type: ignore[misc]
 
 warnings.filterwarnings("ignore", message="Some weights of Wav2Vec2Model")
 
@@ -31,11 +34,15 @@ def get_gpu_memory_info(verbose=False):
     if not verbose:
         return
     for i in range(torch.cuda.device_count()):
+        try:
+            free_b, total_b = torch.cuda.mem_get_info(i)  # type: ignore[attr-defined]
+            free_gb = free_b / 1024**3
+            total_gb = total_b / 1024**3
+        except Exception:
+            total_gb = torch.cuda.get_device_properties(i).total_memory / 1024**3
+            free_gb = total_gb - (torch.cuda.memory_reserved(i) / 1024**3)
         mem_allocated = torch.cuda.memory_allocated(i) / 1024**3
-        mem_reserved = torch.cuda.memory_reserved(i) / 1024**3
-        total_memory = torch.cuda.get_device_properties(i).total_memory / 1024**3
-        free_memory = total_memory - mem_reserved
-        print(f"GPU {i}: {mem_allocated:.2f}GB allocated, {free_memory:.2f}GB free")
+        print(f"GPU {i}: {mem_allocated:.2f}GB allocated, {free_gb:.2f}GB free / {total_gb:.2f}GB total")
 
 
 def write_wav_16bit(path, x, sr=16000):
@@ -69,7 +76,9 @@ def safe_corr_np(a, b):
 
 def hungarian(cost):
     try:
-        return _lsa(cost)
+        if _lsa is not None:
+            return _lsa(cost)
+        raise RuntimeError("scipy.optimize.linear_sum_assignment unavailable")
     except Exception:
         used = set()
         rows, cols = [], []
@@ -214,4 +223,5 @@ def safe_cov_torch(X):
 
 def mahalanobis_torch(x, mu, inv):
     diff = x - mu
-    return torch.sqrt(diff @ inv @ diff.T + 1e-6)
+    diff_T = diff.transpose(-1, -2) if diff.ndim >= 2 else diff
+    return torch.sqrt(diff @ inv @ diff_T + 1e-6)

@@ -1,10 +1,12 @@
 import json
 import random
+import gc
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 import librosa
 import pandas as pd
+import torch
 
 from audio import (
     assign_outputs_to_refs_by_corr,
@@ -25,21 +27,20 @@ from utils import *
 
 
 def run_experiment(
-    models,
-    mixtures,
-    *,
-    systems=None,
-    algos=None,
-    experiment_id=None,
-    layer=DEFAULT_LAYER,
-    add_ci=DEFAULT_ADD_CI,
-    alpha=DEFAULT_ALPHA,
-    seed=42,
-    on_missing="skip",
-    verbose=False,
-    max_gpus=None,
+        models,
+        mixtures,
+        *,
+        systems=None,
+        algos=None,
+        experiment_id=None,
+        layer=DEFAULT_LAYER,
+        add_ci=DEFAULT_ADD_CI,
+        alpha=DEFAULT_ALPHA,
+        seed=42,
+        on_missing="skip",
+        verbose=False,
+        max_gpus=None,
 ):
-
     gpu_distributor = GPUWorkDistributor(max_gpus)
     ngpu = get_gpu_count(max_gpus)
 
@@ -127,7 +128,8 @@ def run_experiment(
         print("Loading reference signals...")
     for e in flat_entries:
         wav, _ = librosa.load(str(e["ref"]), sr=SR)
-        all_refs[e["id"]] = torch.from_numpy(loudness_normalize(wav)).pin_memory()
+        # Don't pin memory to reduce memory pressure
+        all_refs[e["id"]] = torch.from_numpy(loudness_normalize(wav))
 
     if verbose:
         print("Computing voiced masks...")
@@ -138,13 +140,13 @@ def run_experiment(
 
     for i, mix in enumerate(mixture_entries):
         if verbose:
-            print(f"  Computing mask for mixture {i+1}/{len(mixture_entries)}")
+            print(f"  Computing mask for mixture {i + 1}/{len(mixture_entries)}")
 
         if ngpu > 0:
             with torch.cuda.device(0):
                 refs_for_mix = [all_refs[e["id"]].cuda() for e in mix]
                 mask = make_union_voiced_mask(refs_for_mix, win, hop)
-                voiced_mask_mix.append(mask.cpu().pin_memory())
+                voiced_mask_mix.append(mask.cpu())  # Don't pin memory
                 for ref in refs_for_mix:
                     del ref
                 torch.cuda.empty_cache()
@@ -157,7 +159,7 @@ def run_experiment(
 
     for algo_idx, algo in enumerate(algos_to_run):
         if verbose:
-            print(f"\nProcessing Algorithm {algo_idx+1}/{len(algos_to_run)}: {algo}")
+            print(f"\nProcessing Algorithm {algo_idx + 1}/{len(algos_to_run)}: {algo}")
 
         algo_dir = os.path.join(exp_root, algo)
         os.makedirs(algo_dir, exist_ok=True)
@@ -173,9 +175,8 @@ def run_experiment(
                     continue
 
                 wav, _ = librosa.load(str(assigned_path), sr=SR)
-                all_outs[e["id"]] = torch.from_numpy(
-                    loudness_normalize(wav)
-                ).pin_memory()
+                # Don't pin memory
+                all_outs[e["id"]] = torch.from_numpy(loudness_normalize(wav))
 
         if missing:
             msg = f"[{algo}] missing outputs for {len(missing)} speaker(s)"
@@ -199,10 +200,12 @@ def run_experiment(
 
         for model_idx, mname in enumerate(models):
             if verbose:
-                print(f"  Processing Model {model_idx+1}/{len(models)}: {mname}")
+                print(f"  Processing Model {model_idx + 1}/{len(models)}: {mname}")
 
             for metric_type in ["PS", "PM"]:
                 clear_gpu_memory()
+                gc.collect()  # Force garbage collection
+
                 model_wrapper, layer_eff = load_model(mname, layer, max_gpus)
                 get_gpu_memory_info(verbose)
 
@@ -216,7 +219,7 @@ def run_experiment(
 
                     if verbose:
                         print(
-                            f"Processing mixture {k+1}/{len(mixture_entries)} for {metric_type}"
+                            f"Processing mixture {k + 1}/{len(mixture_entries)} for {metric_type}"
                         )
 
                     all_signals_mix = []
@@ -248,35 +251,60 @@ def run_experiment(
                         all_labels_mix.extend([f"{s}-{l}" for l in lbls])
 
                     try:
-                        embeddings = embed_batch(
-                            all_signals_mix,
-                            all_masks_mix,
-                            model_wrapper,
-                            layer_eff,
-                            use_mlm=False,
-                        )
-                        if embeddings.numel() > 0:
+                        # Process in smaller batches
+                        batch_size = min(2, BATCH_SIZE)  # Reduced batch size
+                        embeddings_list = []
+
+                        for i in range(0, len(all_signals_mix), batch_size):
+                            batch_sigs = all_signals_mix[i:i + batch_size]
+                            batch_masks = all_masks_mix[i:i + batch_size]
+
+                            batch_embs = embed_batch(
+                                batch_sigs,
+                                batch_masks,
+                                model_wrapper,
+                                layer_eff,
+                                use_mlm=False,
+                            )
+
+                            if batch_embs.numel() > 0:
+                                embeddings_list.append(batch_embs.cpu())
+
+                            # Clear GPU cache after each batch
+                            torch.cuda.empty_cache()
+
+                        if embeddings_list:
+                            embeddings = torch.cat(embeddings_list, dim=0)
                             embs_by_mix[k] = embeddings
                             labels_by_mix[k] = all_labels_mix
+
                     except Exception as ex:
                         if verbose:
-                            print(f"      ERROR processing mixture {k+1}: {ex}")
+                            print(f"      ERROR processing mixture {k + 1}: {ex}")
                         continue
 
                     del all_signals_mix, all_masks_mix, all_labels_mix
+                    if 'embeddings_list' in locals():
+                        del embeddings_list
                     clear_gpu_memory()
+                    gc.collect()
 
                 if verbose:
                     print(f"    Computing {metric_type} scores for {mname}...")
 
+                # Reduced thread pool size to avoid memory contention
                 with ThreadPoolExecutor(
-                    max_workers=min(4, ngpu * 2 if ngpu > 0 else 2)
+                        max_workers=min(2, ngpu if ngpu > 0 else 1)
                 ) as executor:
                     for k in range(len(mixture_entries)):
                         if k not in embs_by_mix:
                             continue
 
                         E, L, D = embs_by_mix[k].shape
+                        if L == 0:
+                            if verbose:
+                                print(f"        WARNING: mixture {k + 1} produced 0 frames after masking; skipping.")
+                            continue
 
                         def process_frame(f):
                             try:
@@ -284,7 +312,9 @@ def run_experiment(
                                     coords_d, coords_c, eigvals, k_sub_gauss = (
                                         gpu_distributor.execute_on_gpu(
                                             diffusion_map_torch,
-                                            embs_by_mix[k][:, f, :].numpy(),
+                                            embs_by_mix[k][:, f, :].detach().cpu().numpy() if hasattr(embs_by_mix[k],
+                                                                                                      'detach') else
+                                            embs_by_mix[k][:, f, :],
                                             labels_by_mix[k],
                                             alpha=alpha,
                                             eig_solver="full",
@@ -296,7 +326,9 @@ def run_experiment(
                                 else:
                                     coords_d = gpu_distributor.execute_on_gpu(
                                         diffusion_map_torch,
-                                        embs_by_mix[k][:, f, :].numpy(),
+                                        embs_by_mix[k][:, f, :].detach().cpu().numpy() if hasattr(embs_by_mix[k],
+                                                                                                  'detach') else
+                                        embs_by_mix[k][:, f, :],
                                         labels_by_mix[k],
                                         alpha=alpha,
                                         eig_solver="full",
@@ -340,7 +372,7 @@ def run_experiment(
 
                             except Exception as ex:
                                 if verbose:
-                                    print(f"        ERROR frame {f+1}: {ex}")
+                                    print(f"        ERROR frame {f + 1}: {ex}")
                                 return None
 
                         futures = [executor.submit(process_frame, f) for f in range(L)]
@@ -366,6 +398,7 @@ def run_experiment(
 
                 del model_wrapper
                 clear_gpu_memory()
+                gc.collect()
 
         if verbose:
             print(f"  Saving results for {algo}...")
@@ -400,6 +433,7 @@ def run_experiment(
 
         del all_outs
         clear_gpu_memory()
+        gc.collect()
 
     print(f"\nEXPERIMENT COMPLETED")
     print(f"Results saved to: {exp_root}")
@@ -407,5 +441,6 @@ def run_experiment(
     del all_refs, voiced_mask_mix
     clear_gpu_memory()
     get_gpu_memory_info(verbose)
+    gc.collect()
 
     return exp_root

@@ -69,9 +69,12 @@ The system supports **JSON** or **Python** manifests to specify mixtures, refere
 
 ---
 
-## Example for the SASSEC subgroup in the SEBASS database
+## Example
 
-### Example Python manifest (`Manifests/Example.py`): 2 independent mixtures with 2 speakers each
+### 1. Download the SASSEC dataset  
+Download the [SASSEC](https://www.audiolabs-erlangen.de/content/resources/00_2019-WASPAA-SEBASS/SASSEC.zip) data from the official source.
+
+### 2. Example Python manifest (`Manifests/Example.py`): 2 independent mixtures with 2 speakers each
 ```python
 from pathlib import Path
 
@@ -107,7 +110,7 @@ MANIFEST = [
 ]
 ```
 
-### Run the experiment
+### 3. Run the experiment
 - **Windows (PowerShell):**
   ```powershell
   python main.py --manifest .\Manifests\Example.py --model wav2vec2 --alpha 1.0 --layer 2 --verbose

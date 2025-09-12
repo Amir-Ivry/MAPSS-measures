@@ -1,4 +1,3 @@
-
 import queue
 import threading
 from functools import lru_cache
@@ -31,17 +30,23 @@ class BalancedDualGPUModel:
             self.devices.append(device)
             ckpt, cls, _ = get_model_config(layer)[model_name]
             extractor = Wav2Vec2FeatureExtractor.from_pretrained(ckpt)
-            model = (
-                cls.from_pretrained(
-                    ckpt,
-                    output_hidden_states=True,
-                    use_safetensors=True,
-                    torch_dtype=torch.float16,
-                    low_cpu_mem_usage=True,
-                )
-                .eval()
-                .to(device)
+
+            # More conservative memory settings
+            model = cls.from_pretrained(
+                ckpt,
+                output_hidden_states=True,
+                use_safetensors=True,
+                torch_dtype=torch.float16,
+                low_cpu_mem_usage=True,
+                attn_implementation="sdpa"  # Use scaled dot-product attention for efficiency
             )
+            model.eval()
+            model = model.to(device)
+
+            # Disable gradient computation globally for this model
+            for param in model.parameters():
+                param.requires_grad = False
+
             self.extractors.append(extractor)
             self.models.append(model)
 
@@ -68,26 +73,36 @@ class BalancedDualGPUModel:
                     signals, sampling_rate=SR, return_tensors="pt", padding=True
                 )
                 input_values = inputs.input_values.to(device, non_blocking=True)
+
+                # Clear cache before processing
+                torch.cuda.empty_cache()
+
                 orig_mode = model.training
                 model.train() if use_mlm else model.eval()
-                with torch.no_grad():
-                    with torch.cuda.amp.autocast():
+                with torch.no_grad():  # Changed from inference_mode for better compatibility
+                    with torch.amp.autocast(device_type='cuda', dtype=torch.float16):  # Updated syntax
                         hs = model(
-                            input_values.half(), output_hidden_states=True
+                            input_values, output_hidden_states=True
                         ).hidden_states[self.layer]
                 model.train(orig_mode)
+
                 B, T, D = hs.shape
                 keep = []
                 for b in range(B):
                     mask_b = masks[b].float().unsqueeze(0).unsqueeze(0).to(device)
                     mask_t = F.interpolate(mask_b, size=T, mode="nearest")[0, 0].bool()
-                    keep.append(hs[b][mask_t])
+                    keep.append(hs[b][mask_t].cpu())  # Move to CPU immediately
+
+                # Clear intermediate tensors
+                del hs, input_values
+                torch.cuda.empty_cache()
+
                 if keep:
                     L_max = max(x.shape[0] for x in keep)
                     keep_padded = [
                         F.pad(x, (0, 0, 0, L_max - x.shape[0])) for x in keep
                     ]
-                    result = torch.stack(keep_padded, dim=0).cpu()
+                    result = torch.stack(keep_padded, dim=0)
                 else:
                     result = torch.empty(0, 0, 0)
                 self.result_queue.put((task_id, result))
@@ -154,17 +169,24 @@ def load_model(name, layer, max_gpus=None):
     else:
         ckpt, cls, layer_eff = get_model_config(layer)[name]
         extractor = Wav2Vec2FeatureExtractor.from_pretrained(ckpt)
-        model = (
-            cls.from_pretrained(
-                ckpt,
-                output_hidden_states=True,
-                use_safetensors=True,
-                torch_dtype=torch.float16,
-                low_cpu_mem_usage=True,
-            )
-            .eval()
-            .to("cuda:0" if torch.cuda.is_available() else "cpu")
+
+        # Single GPU optimization
+        device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        model = cls.from_pretrained(
+            ckpt,
+            output_hidden_states=True,
+            use_safetensors=True,
+            torch_dtype=torch.float16,
+            low_cpu_mem_usage=True,
+            attn_implementation="sdpa"  # Use scaled dot-product attention
         )
+        model.eval()
+        model = model.to(device)
+
+        # Disable gradients
+        for param in model.parameters():
+            param.requires_grad = False
+
         return (extractor, model), layer_eff
 
 
@@ -184,28 +206,44 @@ def embed_batch_raw(signals, masks_audio):
 
 
 def embed_batch_single_gpu(
-    signals, masks_audio, extractor, model, layer, use_mlm=False
+        signals, masks_audio, extractor, model, layer, use_mlm=False
 ):
     if not signals:
         return torch.empty(0, 0, 0)
     device = next(model.parameters()).device
-    inputs = extractor(signals, sampling_rate=SR, return_tensors="pt", padding=True)
-    input_values = inputs.input_values.to(device, non_blocking=True)
-    orig_mode = model.training
-    model.train() if use_mlm else model.eval()
-    with torch.no_grad():
-        with torch.cuda.amp.autocast(enabled=device.type == "cuda"):
-            hs = model(input_values, output_hidden_states=True).hidden_states[layer]
-    model.train(orig_mode)
-    B, T, D = hs.shape
-    keep = []
-    for b in range(B):
-        mask_b = masks_audio[b].float().unsqueeze(0).unsqueeze(0).to(device)
-        mask_t = F.interpolate(mask_b, size=T, mode="nearest")[0, 0].bool()
-        keep.append(hs[b][mask_t])
-    if keep:
-        L_max = max(x.shape[0] for x in keep)
-        keep_padded = [F.pad(x, (0, 0, 0, L_max - x.shape[0])) for x in keep]
+
+    # Process in smaller chunks to avoid OOM
+    max_batch = 2  # Reduced from BATCH_SIZE
+    all_keeps = []
+
+    for i in range(0, len(signals), max_batch):
+        batch_signals = signals[i:i + max_batch]
+        batch_masks = masks_audio[i:i + max_batch]
+
+        inputs = extractor(batch_signals, sampling_rate=SR, return_tensors="pt", padding=True)
+        input_values = inputs.input_values.to(device, non_blocking=True)
+
+        orig_mode = model.training
+        model.train() if use_mlm else model.eval()
+
+        with torch.no_grad():
+            with torch.amp.autocast(device_type='cuda', dtype=torch.float16):
+                hs = model(input_values, output_hidden_states=True).hidden_states[layer]
+        model.train(orig_mode)
+
+        B, T, D = hs.shape
+        for b in range(B):
+            mask_b = batch_masks[b].float().unsqueeze(0).unsqueeze(0).to(device)
+            mask_t = F.interpolate(mask_b, size=T, mode="nearest")[0, 0].bool()
+            all_keeps.append(hs[b][mask_t].cpu())  # Move to CPU immediately
+
+        # Clear intermediate tensors
+        del hs, input_values
+        torch.cuda.empty_cache()
+
+    if all_keeps:
+        L_max = max(x.shape[0] for x in all_keeps)
+        keep_padded = [F.pad(x, (0, 0, 0, L_max - x.shape[0])) for x in all_keeps]
         return torch.stack(keep_padded, dim=0)
     else:
         return torch.empty(0, 0, 0)
@@ -216,10 +254,10 @@ def embed_batch(signals, masks_audio, model_wrapper, layer, use_mlm=False):
         return embed_batch_raw(signals, masks_audio)
     if isinstance(model_wrapper, BalancedDualGPUModel):
         all_embeddings = []
-        batch_size = BATCH_SIZE
+        batch_size = min(BATCH_SIZE, 2)  # Reduced batch size
         for i in range(0, len(signals), batch_size):
             batch_emb = model_wrapper.process_batch(
-                signals[i : i + batch_size], masks_audio[i : i + batch_size], use_mlm
+                signals[i: i + batch_size], masks_audio[i: i + batch_size], use_mlm
             )
             if batch_emb.numel() > 0:
                 all_embeddings.append(batch_emb)

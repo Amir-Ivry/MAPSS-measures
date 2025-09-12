@@ -6,7 +6,7 @@ __pycache__/
 # Virtual environments
 .venv/
 venv/
-.dev_local_venv/
+.venv_dev_local_v2/
 
 # Results and artifacts
 results/
