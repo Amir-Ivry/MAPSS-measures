@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+select = ["E","F","I","UP"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+addopts = "-q -ra"
+testpaths = ["tests"]

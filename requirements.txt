@@ -1,0 +1,9 @@
+numpy<2
+scipy>=1.12,<1.14       
+
+librosa==0.11.0         
+soundfile>=0.12,<0.14
+pyloudnorm>=0.1,<0.2
+
+pandas>=2.2,<2.4
+transformers>=4.40,<4.53

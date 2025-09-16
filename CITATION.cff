@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+title: "MAPSS: Manifold-based Assessment of Perceptual Source Separation"
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: "Ivry"
+    given-names: "Amir"
+  - family-names: "Cornell"
+    given-names: "Samuele"
+  - family-names: "Watanabe"
+    given-names: "Shinji"
+version: "1.0.0" 
+date-released: "2025-09-11"  
+identifiers:
+  - type: "arxiv"
+    value: "2509.09212v1"
+  - type: "doi"
+    value: "10.48550/arXiv.2509.09212"
+keywords:
+  - "source separation"
+  - "perceptual metric"
+  - "audio signal processing"
+  - "self-supervised learning"
+  - "manifold learning"
+homepage: "https://arxiv.org/abs/2509.09212v1"
+license: "CC-BY-4.0" 

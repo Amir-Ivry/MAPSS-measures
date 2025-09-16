@@ -1,0 +1,26 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+
+# Results and artifacts
+results/
+
+# Audio files (large assets)
+*.wav
+
+# OS / IDE files
+.vscode/
+.DS_Store
+Thumbs.db
+.idea/
+
+# GitHub specific
+.github/
+
+# Testing
+tests/

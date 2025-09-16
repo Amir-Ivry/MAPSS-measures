@@ -1,0 +1,28 @@
+[
+    {
+        "mixture_id": "female_pair_example",
+        "references": [
+			"C:/postdoc/R1 - PS and PM/Data - speech separation MOS/SASSEC/Signals/orig/female_inst_sim_1.wav",
+			"C:/postdoc/R1 - PS and PM/Data - speech separation MOS/SASSEC/Signals/orig/female_inst_sim_2.wav"
+        ],
+        "systems": {
+            "Algo1_SASSEC": [
+				"C:/postdoc/R1 - PS and PM/Data - speech separation MOS/SASSEC/Signals/Algo1/female_inst_sim_1.wav",
+				"C:/postdoc/R1 - PS and PM/Data - speech separation MOS/SASSEC/Signals/Algo1/female_inst_sim_2.wav"
+            ]
+        }
+    },
+    {
+        "mixture_id": "male_pair_example",
+        "references": [
+			"C:/postdoc/R1 - PS and PM/Data - speech separation MOS/SASSEC/Signals/orig/male_inst_sim_1.wav",
+			"C:/postdoc/R1 - PS and PM/Data - speech separation MOS/SASSEC/Signals/orig/male_inst_sim_2.wav"
+        ],
+        "systems": {
+            "Algo1_SASSEC": [
+				"C:/postdoc/R1 - PS and PM/Data - speech separation MOS/SASSEC/Signals/Algo1/male_inst_sim_1.wav",
+				"C:/postdoc/R1 - PS and PM/Data - speech separation MOS/SASSEC/Signals/Algo1/male_inst_sim_2.wav"
+            ]
+        }
+    }
+]
