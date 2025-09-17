@@ -1,4 +1,4 @@
-# MAPSS-measures
+# MAPSS-measures (See [paper](https://arxiv.org/abs/2509.09212v1), [demo](https://huggingface.co/spaces/AIvry/MAPSS-measures/discussions))
 
 MAPSS (**Manifold-Aware Perceptual Source Separation**) provides evaluation code for two perceptually grounded, frame-level measures:  
 - **Perceptual Separation (PS)** – quantifies how well separated speech sources are perceived. Range: 0-1, higher is better.
