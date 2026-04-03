@@ -139,11 +139,11 @@ For every timestamps in milliseconds, every source either has value or is blank.
 If you use this work, please cite:
 
 ```bibtex
-@article{ivry2025mapss,
+@article{ivry2026mapss,
   title={MAPSS: Manifold-based Assessment of Perceptual Source Separation},
   author={Ivry, Amir and Cornell, Samuele and Watanabe, Shinji},
-  journal={arXiv preprint arXiv:2509.09212},
-  year={2025}
+  journal={International Conference on Learning Representations (ICLR)},
+  year={2026}
 }
 
 ```
