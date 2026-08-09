@@ -4,8 +4,17 @@ import torch
 from scipy.special import gammaincc
 from scipy.stats import gamma
 
-from config import COV_TOL
-from utils import get_gpu_count, mahalanobis_torch, safe_cov_torch
+from .config import COV_TOL
+from .utils import get_gpu_count, mahalanobis_torch, safe_cov_torch
+
+
+def _speaker_id(label):
+    """Return the source identifier without the final ref/out/distortion suffix."""
+    return label.rsplit("-", 1)[0]
+
+
+def _belongs_to(label, speaker_id):
+    return label.startswith(f"{speaker_id}-")
 
 
 def pm_tail_gamma(d_out_sq, sq_dists):
@@ -17,8 +26,8 @@ def pm_tail_gamma(d_out_sq, sq_dists):
     """
     mu = sq_dists.mean().item()
     var = sq_dists.var(unbiased=True).item()
-    if var == 0.0:
-        return 1.0
+    if not math.isfinite(mu) or not math.isfinite(var) or mu <= 0.0 or var <= 0.0:
+        return 1.0 if float(d_out_sq) <= 1e-12 else 0.0
     k = (mu**2) / var
     theta = var / mu
     return float(1.0 - gamma.cdf(d_out_sq, a=k, scale=theta))
@@ -67,7 +76,17 @@ def diffusion_map_torch(
     """
     device = device or ("cuda:0" if torch.cuda.is_available() else "cpu")
     X = torch.as_tensor(X_np, dtype=torch.float32, device=device)
+    if X.ndim != 2:
+        raise ValueError("X_np must have shape (points, features).")
     N = X.shape[0]
+    if N < 3:
+        raise ValueError("Diffusion maps require at least three points.")
+    if len(labels_by_mix) != N:
+        raise ValueError("labels_by_mix must contain one label per point.")
+    if not bool(torch.isfinite(X).all()):
+        raise ValueError("Diffusion-map inputs contain NaN or infinite values.")
+    if not 0.0 <= float(alpha) <= 1.0:
+        raise ValueError("alpha must be in [0, 1].")
 
     if device != "cpu" and torch.cuda.is_available():
         stream = torch.cuda.Stream(device=device)
@@ -96,7 +115,7 @@ def diffusion_map_torch(
             i, j = torch.triu_indices(
                 N, N, offset=1, device=None if device == "cpu" else device
             )
-            eps = torch.median(D2[i, j])
+            eps = torch.median(D2[i, j]).clamp_min(torch.finfo(D2.dtype).eps)
             K = torch.exp(-D2 / (2 * eps))
             d = K.sum(dim=1)
 
@@ -124,9 +143,15 @@ def diffusion_map_torch(
                 raise ValueError(f"Unknown eig_solver '{eig_solver}'")
 
             psi = vecs[:, 1:]
-            lam = vals[1:]
+            lam = vals[1:].clamp_min(0)
+            if lam.numel() == 0:
+                raise ValueError("Diffusion maps produced no non-trivial eigenvalues.")
             cum = torch.cumsum(lam, dim=0)
-            L = int((cum / cum[-1] < cutoff).sum().item()) + 1
+            if float(cum[-1]) <= torch.finfo(cum.dtype).eps:
+                L = 1
+            else:
+                L = int((cum / cum[-1] < cutoff).sum().item()) + 1
+            L = min(L, lam.numel())
             lam_pow = lam.pow(diffusion_time)
             psi_all = psi * lam_pow
             Psi = psi_all[:, :L]
@@ -173,10 +198,10 @@ def compute_ps(coords, labels, max_gpus=None):
 
     if ngpu == 0:
         coords_t = torch.tensor(coords)
-        spks_here = sorted({l.split("-")[0] for l in labels})
+        spks_here = sorted({_speaker_id(l) for l in labels})
         out = {}
         for s in spks_here:
-            idxs = [i for i, l in enumerate(labels) if l.startswith(s)]
+            idxs = [i for i, l in enumerate(labels) if _belongs_to(l, s)]
             out_i = labels.index(f"{s}-out")
             ref_is = [i for i in idxs if i != out_i]
             mu = coords_t[ref_is].mean(0)
@@ -190,26 +215,26 @@ def compute_ps(coords, labels, max_gpus=None):
                 o_idxs = [
                     i
                     for i, l in enumerate(labels)
-                    if l.startswith(o) and not l.endswith("-out")
+                    if _belongs_to(l, o) and not l.endswith("-out")
                 ]
                 mu_o = coords_t[o_idxs].mean(0)
                 inv_o = torch.linalg.inv(safe_cov_torch(coords_t[o_idxs]))
                 B_list.append(mahalanobis_torch(coords_t[out_i], mu_o, inv_o))
             B_min = torch.min(torch.stack(B_list)) if B_list else torch.tensor(0.0)
-            out[s] = (1 - A / (A + B_min + 1e-6)).item()
+            out[s] = float(np.clip((1 - A / (A + B_min + 1e-6)).item(), 0, 1))
         return out
 
     device = min(ngpu - 1, 1)
     device_str = f"cuda:{device}"
     coords_t = torch.tensor(coords, device=device_str)
-    spks_here = sorted({l.split("-")[0] for l in labels})
+    spks_here = sorted({_speaker_id(l) for l in labels})
     out = {}
 
     stream = torch.cuda.Stream(device=device_str)
     with torch.cuda.device(device):
         with torch.cuda.stream(stream):
             for s in spks_here:
-                idxs = [i for i, l in enumerate(labels) if l.startswith(s)]
+                idxs = [i for i, l in enumerate(labels) if _belongs_to(l, s)]
                 out_i = labels.index(f"{s}-out")
                 ref_is = [i for i in idxs if i != out_i]
                 mu = coords_t[ref_is].mean(0)
@@ -223,7 +248,7 @@ def compute_ps(coords, labels, max_gpus=None):
                     o_idxs = [
                         i
                         for i, l in enumerate(labels)
-                        if l.startswith(o) and not l.endswith("-out")
+                        if _belongs_to(l, o) and not l.endswith("-out")
                     ]
                     mu_o = coords_t[o_idxs].mean(0)
                     inv_o = torch.linalg.inv(safe_cov_torch(coords_t[o_idxs]))
@@ -233,7 +258,9 @@ def compute_ps(coords, labels, max_gpus=None):
                     if B_list
                     else torch.tensor(0.0, device=device_str)
                 )
-                out[s] = (1 - A / (A + B_min + 1e-6)).item()
+                out[s] = float(
+                    np.clip((1 - A / (A + B_min + 1e-6)).item(), 0, 1)
+                )
             stream.synchronize()
     return out
 
@@ -251,10 +278,10 @@ def compute_pm(coords, labels, pm_method, max_gpus=None):
 
     if ngpu == 0:
         coords_t = torch.tensor(coords)
-        spks_here = sorted({l.split("-")[0] for l in labels})
+        spks_here = sorted({_speaker_id(l) for l in labels})
         out = {}
         for s in spks_here:
-            idxs = [i for i, l in enumerate(labels) if l.startswith(s)]
+            idxs = [i for i, l in enumerate(labels) if _belongs_to(l, s)]
             ref_i = labels.index(f"{s}-ref")
             out_i = labels.index(f"{s}-out")
             d_idx = [i for i in idxs if i not in {ref_i, out_i}]
@@ -265,8 +292,7 @@ def compute_pm(coords, labels, pm_method, max_gpus=None):
             dist = coords_t[d_idx] - ref_v
             N, D = dist.shape
             cov = dist.T @ dist / (N - 1)
-            if torch.linalg.matrix_rank(cov) < D:
-                cov += torch.eye(D) * COV_TOL
+            cov += torch.eye(D) * COV_TOL
             inv = torch.linalg.inv(cov)
             sq_dists = torch.stack(
                 [mahalanobis_torch(coords_t[i], ref_v, inv) ** 2 for i in d_idx]
@@ -283,14 +309,14 @@ def compute_pm(coords, labels, pm_method, max_gpus=None):
     device = min(ngpu - 1, 1)
     device_str = f"cuda:{device}"
     coords_t = torch.tensor(coords, device=device_str)
-    spks_here = sorted({l.split("-")[0] for l in labels})
+    spks_here = sorted({_speaker_id(l) for l in labels})
     out = {}
 
     stream = torch.cuda.Stream(device=device_str)
     with torch.cuda.device(device):
         with torch.cuda.stream(stream):
             for s in spks_here:
-                idxs = [i for i, l in enumerate(labels) if l.startswith(s)]
+                idxs = [i for i, l in enumerate(labels) if _belongs_to(l, s)]
                 ref_i = labels.index(f"{s}-ref")
                 out_i = labels.index(f"{s}-out")
                 d_idx = [i for i in idxs if i not in {ref_i, out_i}]
@@ -301,8 +327,7 @@ def compute_pm(coords, labels, pm_method, max_gpus=None):
                 dist = coords_t[d_idx] - ref_v
                 N, D = dist.shape
                 cov = dist.T @ dist / (N - 1)
-                if torch.linalg.matrix_rank(cov) < D:
-                    cov += torch.eye(D, device=device_str) * COV_TOL
+                cov += torch.eye(D, device=device_str) * COV_TOL
                 inv = torch.linalg.inv(cov)
                 sq_dists = torch.stack(
                     [mahalanobis_torch(coords_t[i], ref_v, inv) ** 2 for i in d_idx]
@@ -327,7 +352,7 @@ def pm_ci_components_full(
     :param coords_rest: Complement diffusion maps coordinates.
     :param eigvals: Eigenvalues of the diffusion maps.
     :param labels: Assign source index per coordinate
-    :param delta: 1-\delta is the confidence score.
+    :param delta: 1 minus delta is the confidence score.
     :param K: Absolute constant.
     :param C1: Absolute constant.
     :param C2: Absolute constant.
@@ -338,10 +363,9 @@ def pm_ci_components_full(
     def _safe_x(a, theta):
         return a / max(theta, _EPS)
 
-    D = coords_d.shape[1]
     m = coords_rest.shape[1]
     if m == 0:
-        z = {s: 0.0 for s in {l.split("-")[0] for l in labels}}
+        z = {s: 0.0 for s in {_speaker_id(l) for l in labels}}
         return z.copy(), z.copy()
 
     X_d = torch.tensor(
@@ -350,12 +374,12 @@ def pm_ci_components_full(
     X_c = torch.tensor(
         coords_rest, device="cuda:0" if torch.cuda.is_available() else "cpu"
     )
-    spk_ids = sorted({l.split("-")[0] for l in labels})
+    spk_ids = sorted({_speaker_id(l) for l in labels})
     bias_ci = {}
     prob_ci = {}
 
     for s in spk_ids:
-        idxs = [i for i, l in enumerate(labels) if l.startswith(s)]
+        idxs = [i for i, l in enumerate(labels) if _belongs_to(l, s)]
         ref_i = labels.index(f"{s}-ref")
         out_i = labels.index(f"{s}-out")
         dist_is = [i for i in idxs if i not in {ref_i, out_i}]
@@ -469,7 +493,7 @@ def ps_ci_components_full(coords_d, coords_rest, eigvals, labels, *, delta=0.05)
     :param coords_rest: Complement diffusion maps coordinates.
     :param eigvals: Eigenvalues of the diffusion maps.
     :param labels: Assign source index per coordinate
-    :param delta: 1-\delta is the confidence score.
+    :param delta: 1 minus delta is the confidence score.
     :return: error radius and tail bounds for the PS measure.
     """
 
@@ -488,10 +512,9 @@ def ps_ci_components_full(coords_d, coords_rest, eigvals, labels, *, delta=0.05)
         term2 = a_hat * rel_cov_dev
         return term1 + term2
 
-    D = coords_d.shape[1]
     m = coords_rest.shape[1]
     if m == 0:
-        z = {s: 0.0 for s in set(l.split("-")[0] for l in labels)}
+        z = {s: 0.0 for s in {_speaker_id(l) for l in labels}}
         return z.copy(), z.copy()
 
     X_d = torch.tensor(
@@ -500,12 +523,12 @@ def ps_ci_components_full(coords_d, coords_rest, eigvals, labels, *, delta=0.05)
     X_c = torch.tensor(
         coords_rest, device="cuda:0" if torch.cuda.is_available() else "cpu"
     )
-    spk_ids = sorted({l.split("-")[0] for l in labels})
+    spk_ids = sorted({_speaker_id(l) for l in labels})
     bias = {}
     prob = {}
 
     for s in spk_ids:
-        idxs = [i for i, l in enumerate(labels) if l.startswith(s)]
+        idxs = [i for i, l in enumerate(labels) if _belongs_to(l, s)]
         out_i = labels.index(f"{s}-out")
         ref_is = [i for i in idxs if i != out_i]
 
@@ -540,7 +563,7 @@ def ps_ci_components_full(coords_d, coords_rest, eigvals, labels, *, delta=0.05)
             o_idxs = [
                 i
                 for i, l in enumerate(labels)
-                if l.startswith(o) and not l.endswith("-out")
+                if _belongs_to(l, o) and not l.endswith("-out")
             ]
             muo_d = X_d[o_idxs].mean(0)
             muo_c = X_c[o_idxs].mean(0)

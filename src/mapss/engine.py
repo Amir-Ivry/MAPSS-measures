@@ -1,24 +1,48 @@
+import gc
 import json
+import os
 import random
+import warnings
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from pathlib import Path
+
 import librosa
+import numpy as np
 import pandas as pd
-from audio import (
+import torch
+
+from .audio import (
     loudness_normalize,
     compute_speaker_activity_masks,
 )
-from config import *
-from distortions import apply_pm_distortions, apply_ps_distortions
-from metrics import (
+from .config import (
+    BATCH_SIZE,
+    DEFAULT_ADD_CI,
+    DEFAULT_ALPHA,
+    DEFAULT_DELTA_CI,
+    DEFAULT_LAYER,
+    ENERGY_HOP_MS,
+    ENERGY_WIN_MS,
+    RESULTS_ROOT,
+    SR,
+)
+from .distortions import apply_pm_distortions, apply_ps_distortions
+from .metrics import (
     compute_pm,
     compute_ps,
     diffusion_map_torch,
     pm_ci_components_full,
     ps_ci_components_full,
 )
-from models import embed_batch, load_model
-from utils import *
+from .models import embed_batch, load_model
+from .utils import (
+    GPUWorkDistributor,
+    canonicalize_mixtures,
+    clear_gpu_memory,
+    get_gpu_count,
+    get_gpu_memory_info,
+)
 
 
 def compute_mapss_measures(
@@ -35,6 +59,7 @@ def compute_mapss_measures(
         on_missing="skip",
         verbose=False,
         max_gpus=None,
+        results_root=RESULTS_ROOT,
 ):
     """
     Compute MAPSS measures (PM, PS, and their errors). Data is saved to csv files.
@@ -51,8 +76,14 @@ def compute_mapss_measures(
     :param on_missing: "skip" when missing values or throw an "error".
     :param verbose: True will print process info to console during runtime. False will minimize it.
     :param max_gpus: maximal amount of GPUs the program tries to utilize in parallel.
+    :param results_root: directory where experiment artifacts are written.
 
     """
+    if not models:
+        raise ValueError("models must contain at least one model name.")
+    if not (0.0 <= float(alpha) <= 1.0):
+        raise ValueError("alpha must be in [0, 1].")
+
     gpu_distributor = GPUWorkDistributor(max_gpus)
     ngpu = get_gpu_count(max_gpus)
 
@@ -66,6 +97,13 @@ def compute_mapss_measures(
         torch.cuda.manual_seed_all(seed)
 
     canon_mix = canonicalize_mixtures(mixtures, systems=systems)
+    if not canon_mix:
+        raise ValueError("mixtures must contain at least one mixture.")
+    for mixture in canon_mix:
+        if len(mixture.refs) < 2:
+            raise ValueError(
+                f"Mixture {mixture.mixture_id}: MAPSS requires at least two references."
+            )
 
     mixture_entries = []
     for m in canon_mix:
@@ -93,13 +131,20 @@ def compute_mapss_measures(
 
     if algos is None:
         algos_to_run = sorted(
-            {algo for algo in canon_mix[0].systems.keys()} if canon_mix and canon_mix[0].systems else []
+            {
+                algo
+                for mixture in canon_mix
+                for algo in (mixture.systems or {}).keys()
+            }
         )
     else:
         algos_to_run = list(algos)
 
-    exp_id = experiment_id or datetime.now().strftime("%Y%m%d_%H%M%S")
-    exp_root = os.path.join(RESULTS_ROOT, f"experiment_{exp_id}")
+    if not algos_to_run:
+        raise ValueError("No output systems were provided.")
+
+    exp_id = experiment_id or datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    exp_root = os.path.join(os.fspath(results_root), f"experiment_{exp_id}")
     os.makedirs(exp_root, exist_ok=True)
 
     params = {
@@ -131,9 +176,10 @@ def compute_mapss_measures(
     with open(os.path.join(exp_root, "manifest_canonical.json"), "w") as f:
         json.dump(canon_struct, f, indent=2)
 
-    print(f"Starting experiment {exp_id} with {ngpu} GPUs")
-    print(f"Results will be saved to: {exp_root}")
-    print("NOTE: Output files must be provided in the same order as reference files.")
+    if verbose:
+        print(f"Starting experiment {exp_id} with {ngpu} GPUs")
+        print(f"Results will be saved to: {exp_root}")
+        print("NOTE: Outputs must be ordered like their references.")
 
     clear_gpu_memory()
     get_gpu_memory_info(verbose)
@@ -177,7 +223,11 @@ def compute_mapss_measures(
             individual_speaker_masks_mix.append([m.cpu() for m in individual_masks])
             total_frames_per_mix.append(multi_mask.shape[0])
 
-    ordered_speakers = [e["id"] for e in flat_entries]
+        if not bool(multi_mask.any()):
+            raise ValueError(
+                "A mixture has no frames in which at least two references are active."
+            )
+
     all_mixture_results = {}
     for mix_idx, (mix_canon, mix_entries) in enumerate(zip(canon_mix, mixture_entries)):
         mixture_id = mix_canon.mixture_id
@@ -303,7 +353,11 @@ def compute_mapss_measures(
                             print(f"WARNING: mixture {mixture_id} produced 0 frames after masking; skipping.")
                         continue
 
-                    L = next(iter(all_embeddings.values())).shape[1] if all_embeddings else 0
+                    L = min(
+                        embedding.shape[1]
+                        for embedding in all_embeddings.values()
+                        if embedding.numel() > 0
+                    )
 
                     if L == 0:
                         if verbose:
@@ -317,12 +371,12 @@ def compute_mapss_measures(
                             max_workers=min(2, ngpu if ngpu > 0 else 1)
                     ) as executor:
 
-                        def process_frame(f, frame_idx, all_embeddings_dict, speaker_labels_dict, individual_masks_list,
+                        def process_frame(f, frame_idx, all_embeddings_dict, speaker_labels_dict, individual_masks_by_speaker,
                                           speaker_indices):
                             try:
                                 active_speakers = []
-                                for spk_idx, spk_id in enumerate(speaker_indices):
-                                    if individual_masks_list[spk_idx][frame_idx]:
+                                for spk_id in speaker_indices:
+                                    if individual_masks_by_speaker[spk_id][frame_idx]:
                                         active_speakers.append(spk_id)
 
                                 if len(active_speakers) < 2:
@@ -396,11 +450,15 @@ def compute_mapss_measures(
                                     return frame_idx, "PM", score, bias, prob
 
                             except Exception as ex:
-                                if verbose:
-                                    print(f"ERROR frame {frame_idx}: {ex}")
-                                return None
+                                raise RuntimeError(
+                                    f"{metric_type} failed at frame {frame_idx}: {ex}"
+                                ) from ex
 
                         speaker_ids = [e["id"] for e in speakers_this_mix]
+                        masks_by_speaker = {
+                            entry["id"]: individual_masks[index]
+                            for index, entry in enumerate(mix_entries)
+                        }
 
                         futures = [
                             executor.submit(
@@ -409,7 +467,7 @@ def compute_mapss_measures(
                                 valid_frame_indices[f],
                                 all_embeddings,
                                 speaker_labels,
-                                individual_masks,
+                                masks_by_speaker,
                                 speaker_ids
                             )
                             for f in range(L)
@@ -444,15 +502,15 @@ def compute_mapss_measures(
                     clear_gpu_memory()
                     gc.collect()
 
-            all_mixture_results[mixture_id][algo][mname] = {
-                'ps_frames': ps_frames[mname],
-                'pm_frames': pm_frames[mname],
-                'ps_bias_frames': ps_bias_frames[mname] if add_ci else None,
-                'ps_prob_frames': ps_prob_frames[mname] if add_ci else None,
-                'pm_bias_frames': pm_bias_frames[mname] if add_ci else None,
-                'pm_prob_frames': pm_prob_frames[mname] if add_ci else None,
-                'total_frames': total_frames
-            }
+                all_mixture_results[mixture_id][algo][mname] = {
+                    "ps_frames": ps_frames[mname],
+                    "pm_frames": pm_frames[mname],
+                    "ps_bias_frames": ps_bias_frames[mname] if add_ci else None,
+                    "ps_prob_frames": ps_prob_frames[mname] if add_ci else None,
+                    "pm_bias_frames": pm_bias_frames[mname] if add_ci else None,
+                    "pm_prob_frames": pm_prob_frames[mname] if add_ci else None,
+                    "total_frames": total_frames,
+                }
 
         if verbose:
             print(f"Saving results for mixture {mixture_id}...")
@@ -506,12 +564,13 @@ def compute_mapss_measures(
         clear_gpu_memory()
         gc.collect()
 
-    print(f"\nEXPERIMENT COMPLETED")
-    print(f"Results saved to: {exp_root}")
+    if verbose:
+        print("\nEXPERIMENT COMPLETED")
+        print(f"Results saved to: {exp_root}")
 
     del all_refs, multi_speaker_masks_mix, individual_speaker_masks_mix
 
-    from models import cleanup_all_models
+    from .models import cleanup_all_models
     cleanup_all_models()
 
     clear_gpu_memory()

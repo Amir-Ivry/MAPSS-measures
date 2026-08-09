@@ -1,6 +1,6 @@
+import gc
 import queue
 import threading
-import gc
 
 import torch
 import torch.nn.functional as F
@@ -11,8 +11,8 @@ from transformers import (
     WavLMModel,
 )
 
-from config import BATCH_SIZE, ENERGY_HOP_MS, ENERGY_WIN_MS, SR
-from utils import get_gpu_count
+from .config import BATCH_SIZE, ENERGY_HOP_MS, ENERGY_WIN_MS, SR
+from .utils import get_gpu_count
 
 
 class BalancedMultiGPUModel:
@@ -20,6 +20,7 @@ class BalancedMultiGPUModel:
     Distributes model inference workload across GPUs.
     """
     def __init__(self, model_name, layer, max_gpus=None):
+        self._closed = False
         self.layer = layer
         self.models = []
         self.extractors = []
@@ -38,7 +39,6 @@ class BalancedMultiGPUModel:
                 output_hidden_states=True,
                 use_safetensors=True,
                 torch_dtype=torch.float16,
-                low_cpu_mem_usage=True,
                 attn_implementation=attn_impl
             )
             model.eval()
@@ -133,21 +133,27 @@ class BalancedMultiGPUModel:
 
     def cleanup(self):
         """Explicit cleanup method"""
-        for q in self.gpu_queues:
+        if getattr(self, "_closed", True):
+            return
+        self._closed = True
+        for q in getattr(self, "gpu_queues", []):
             q.put(None)
-        for w in self.workers:
+        for w in getattr(self, "workers", []):
             w.join(timeout=5.0)
-        for model in self.models:
+        for model in getattr(self, "models", []):
             del model
-        for extractor in self.extractors:
+        for extractor in getattr(self, "extractors", []):
             del extractor
-        self.models.clear()
-        self.extractors.clear()
+        getattr(self, "models", []).clear()
+        getattr(self, "extractors", []).clear()
         torch.cuda.empty_cache()
         gc.collect()
 
     def __del__(self):
-        self.cleanup()
+        try:
+            self.cleanup()
+        except Exception:
+            pass
 
 
 def get_model_config(layer):
@@ -205,14 +211,15 @@ def load_model(name, layer, max_gpus=None):
         ckpt, cls, layer_eff = get_model_config(layer)[name]
         extractor = Wav2Vec2FeatureExtractor.from_pretrained(ckpt)
 
-        device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        use_cuda = ngpu > 0 and torch.cuda.is_available()
+        device = "cuda:0" if use_cuda else "cpu"
+        dtype = torch.float16 if use_cuda else torch.float32
         attn_impl = "eager" if cls is WavLMModel else "sdpa"
         model = cls.from_pretrained(
             ckpt,
             output_hidden_states=True,
             use_safetensors=True,
-            torch_dtype=torch.float16,
-            low_cpu_mem_usage=True,
+            torch_dtype=dtype,
             attn_implementation=attn_impl
         )
         model.eval()
@@ -289,7 +296,12 @@ def embed_batch_single_gpu(
         model.train() if use_mlm else model.eval()
 
         with torch.no_grad():
-            with torch.amp.autocast(device_type='cuda', dtype=torch.float16):
+            if device.type == "cuda":
+                with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
+                    hs = model(
+                        input_values, output_hidden_states=True
+                    ).hidden_states[layer]
+            else:
                 hs = model(input_values, output_hidden_states=True).hidden_states[layer]
         model.train(orig_mode)
 

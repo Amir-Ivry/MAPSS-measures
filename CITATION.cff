@@ -8,11 +8,11 @@ authors:
     given-names: "Samuele"
   - family-names: "Watanabe"
     given-names: "Shinji"
-version: "1.0.0" 
-date-released: "2025-09-11"  
+version: "1.1.0"
+date-released: "2026-08-09"
 identifiers:
   - type: "arxiv"
-    value: "2509.09212v1"
+    value: "2509.09212v3"
   - type: "doi"
     value: "10.48550/arXiv.2509.09212"
 keywords:
@@ -21,5 +21,19 @@ keywords:
   - "audio signal processing"
   - "self-supervised learning"
   - "manifold learning"
-homepage: "https://arxiv.org/abs/2509.09212v1"
-license: "CC-BY-4.0" 
+repository-code: "https://github.com/Amir-Ivry/MAPSS-measures"
+url: "https://github.com/Amir-Ivry/MAPSS-measures"
+license: "MIT"
+preferred-citation:
+  type: conference-paper
+  title: "MAPSS: Manifold-based Assessment of Perceptual Source Separation"
+  authors:
+    - family-names: "Ivry"
+      given-names: "Amir"
+    - family-names: "Cornell"
+      given-names: "Samuele"
+    - family-names: "Watanabe"
+      given-names: "Shinji"
+  collection-title: "International Conference on Learning Representations"
+  year: 2026
+  url: "https://arxiv.org/abs/2509.09212"
