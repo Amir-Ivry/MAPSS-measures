@@ -68,8 +68,5 @@ Do not convert inactive `NaN` frames to zero. That would penalize silence rather
 > MAPSS is now available as a Python package for frame-level evaluation of source
 > separation. Give it ordered reference and output waveforms; it returns complementary
 > Perceptual Separation (leakage) and Perceptual Match (self-distortion) scores in `[0, 1]`,
-> with optional uncertainty quantities. Install from GitHub, view the quick start, and cite
-> the ICLR 2026 paper.
-
-After the PyPI release, replace “Install from GitHub” with
-`pip install mapss-measures` and link directly to the PyPI project page.
+> with optional uncertainty quantities. Install version 1.1.0 with
+> `pip install mapss-measures==1.1.0`, view the quick start, and cite the ICLR 2026 paper.

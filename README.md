@@ -1,6 +1,7 @@
 # MAPSS
 
 [![CI](https://github.com/Amir-Ivry/MAPSS-measures/actions/workflows/ci.yml/badge.svg)](https://github.com/Amir-Ivry/MAPSS-measures/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/mapss-measures.svg)](https://pypi.org/project/mapss-measures/)
 [![Paper](https://img.shields.io/badge/ICLR-2026-blue)](https://arxiv.org/abs/2509.09212)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -16,10 +17,10 @@ It can also return the error quantities derived in the [ICLR 2026 paper](https:/
 
 ## Install
 
-From PyPI after the first package release:
+From PyPI:
 
 ```bash
-pip install mapss-measures
+pip install mapss-measures==1.1.0
 ```
 
 Directly from the current GitHub version:
