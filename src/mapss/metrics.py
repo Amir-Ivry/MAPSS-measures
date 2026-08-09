@@ -363,7 +363,6 @@ def pm_ci_components_full(
     def _safe_x(a, theta):
         return a / max(theta, _EPS)
 
-    D = coords_d.shape[1]
     m = coords_rest.shape[1]
     if m == 0:
         z = {s: 0.0 for s in {_speaker_id(l) for l in labels}}
@@ -513,7 +512,6 @@ def ps_ci_components_full(coords_d, coords_rest, eigvals, labels, *, delta=0.05)
         term2 = a_hat * rel_cov_dev
         return term1 + term2
 
-    D = coords_d.shape[1]
     m = coords_rest.shape[1]
     if m == 0:
         z = {s: 0.0 for s in {_speaker_id(l) for l in labels}}
