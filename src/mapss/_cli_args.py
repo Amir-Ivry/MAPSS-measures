@@ -4,19 +4,7 @@ import json
 from pathlib import Path, PurePath
 import importlib.util
 
-from config import DEFAULT_ALPHA
-from models import get_model_config
-
-MODEL_DEFAULT_LAYER = {
-    "raw": None,
-    "wavlm": 24,
-    "wav2vec2": 24,
-    "hubert": 24,
-    "wavlm_base": 12,
-    "wav2vec2_base": 12,
-    "hubert_base": 12,
-    "wav2vec2_xlsr": 24,
-}
+from .config import DEFAULT_ALPHA, MODEL_DEFAULT_LAYER, MODEL_MAX_LAYER
 
 def _read_manifest_json(path: Path):
     text = Path(path).read_text(encoding="utf-8")
@@ -105,24 +93,25 @@ def _parse_args():
     return parser.parse_args()
 
 def _validate_and_resolve(model: str, layer_opt: int|None, alpha_opt: float|None):
-    allowed_models = set(get_model_config(0).keys())
+    allowed_models = set(MODEL_MAX_LAYER)
     if model not in allowed_models:
         raise SystemExit(f"Unknown --model '{model}'. Allowed: {sorted(allowed_models)}")
 
-    max_layer = MODEL_DEFAULT_LAYER.get(model)
+    default_layer = MODEL_DEFAULT_LAYER.get(model)
+    max_layer = MODEL_MAX_LAYER.get(model)
     if model == "raw":
         layer_final = 0 if layer_opt is None else int(layer_opt)
     else:
         if layer_opt is None:
-            if max_layer is None:
+            if default_layer is None:
                 raise SystemExit(f"--layer must be provided for model '{model}'.")
-            layer_final = max_layer
+            layer_final = default_layer
         else:
             layer_final = int(layer_opt)
             if max_layer is not None and not (0 <= layer_final <= max_layer):
                 raise SystemExit(
                     f"--layer {layer_final} is out of range for '{model}'. "
-                    f"Expected 0..{max_layer} (or omit to use default {max_layer})."
+                    f"Expected 0..{max_layer} (or omit to use default {default_layer})."
                 )
 
     alpha_final = DEFAULT_ALPHA if alpha_opt is None else float(alpha_opt)

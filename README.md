@@ -1,171 +1,149 @@
-# MAPSS-measures (See [paper](https://arxiv.org/abs/2509.09212v1), [demo](https://huggingface.co/spaces/AIvry/MAPSS-measures))
+# MAPSS
 
-MAPSS (**Manifold-Aware Perceptual Source Separation**) provides evaluation code for two perceptually grounded, frame-level measures:  
-- **Perceptual Separation (PS)** – quantifies how well separated speech sources are perceived. Range: 0-1, higher is better.
-- **Perceptual Match (PM)** – quantifies how closely separated signals match reference speech. Range: 0-1, higher is better.
+[![CI](https://github.com/Amir-Ivry/MAPSS-measures/actions/workflows/ci.yml/badge.svg)](https://github.com/Amir-Ivry/MAPSS-measures/actions/workflows/ci.yml)
+[![Paper](https://img.shields.io/badge/ICLR-2026-blue)](https://arxiv.org/abs/2509.09212)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Both measures are implemented with diffusion maps over self-supervised embeddings, and include error bounds per frame and measure.
+MAPSS (**Manifold-based Assessment of Perceptual Source Separation**) provides two
+perceptually grounded source-separation measures:
 
----
+- **Perceptual Separation (PS):** how well each output is separated from the other reference sources.
+- **Perceptual Match (PM):** how closely each output matches its attributed reference source.
 
-## Installation
+Both measures operate frame by frame in `[0, 1]`; higher is better. MAPSS builds a
+perceptual manifold from self-supervised audio representations and controlled distortions.
+It can also return the error quantities derived in the [ICLR 2026 paper](https://arxiv.org/abs/2509.09212).
 
-### Congifuration
-- Python **3.11.x** (tested on 3.11.9)  
-- `pip` (latest version recommended)  
-- Optional: NVIDIA GPU with drivers supporting **CUDA ≥ 12.4** (tested with driver 12.6)
+## Install
 
-### Steps
+From PyPI after the first package release:
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/Amir-Ivry/MAPSS-measures
-   cd MAPSS-measures
-   ```
-
-2. **Create a virtual environment**
-   - **Windows (PowerShell):**
-     ```powershell
-     py -3.11 -m venv .venv
-     .\.venv\Scripts\Activate.ps1
-     ```
-   - **Linux / macOS:**
-     ```bash
-     python3.11 -m venv .venv
-     source .venv/bin/activate
-     ```
-
-3. **Upgrade pip and install dependencies**
-   ```bash
-   python -m pip install --upgrade pip setuptools wheel
-   pip install -r requirements.txt
-   ```
-
-4. **Install PyTorch**
-   - **CPU-only (default):**
-     ```bash
-     pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
-     ```
-   - **GPU build (CUDA 12.4, works with driver 12.6):**
-     ```bash
-     pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cu124
-     ```
-
----
-
-## Usage
-
-Experiments are launched via the CLI `main.py`.  
-The system supports **JSON** or **Python** manifests to specify mixtures, references, and system outputs.  
-
-### Arguments
-- `--manifest` (required): Path to `.json` or `.py` manifest file  
-- `--model` (required): Embedding model (`raw`, `wavlm`, `wav2vec2`, `hubert`, `wavlm_base`, `wav2vec2_base`, `hubert_base`, `wav2vec2_xlsr`)  
-- `--layer` (optional): Model layer (validated against model-specific limits)  
-- `--alpha` (optional): Diffusion map α parameter in `[0,1]` (default from config)  
-- `--max-gpus` (optional): Limit GPUs used  
-- `--verbose`: Enable detailed logs  
-
----
-
-## Example
-
-### 1. Download the SASSEC dataset  
-Download the [SASSEC](https://www.audiolabs-erlangen.de/content/resources/00_2019-WASPAA-SEBASS/SASSEC.zip) data from the official source.
-
-### 2. Example Python manifest (`Manifests/example_English.py`)
-Two mixtures with two speakers in each. In "female_pair_example" we consider two different systems and in "male_pair_example" a single system.
-```python
-from pathlib import Path
-
-SASSEC_PATH = "C:/postdoc/R1 - PS and PM/Data - speech separation MOS/SASSEC"  # full path
-
-MANIFEST = [
-    {
-        "mixture_id": "female_pair_example",
-        "references": [
-            Path(SASSEC_PATH) / Path("Signals/orig/female_inst_sim_1.wav"),
-            Path(SASSEC_PATH) / Path("Signals/orig/female_inst_sim_2.wav"),
-        ],
-        "systems": {
-            "Algo1_SASSEC": [
-                Path(SASSEC_PATH) / Path("Signals/Algo1/female_inst_sim_1.wav"),
-                Path(SASSEC_PATH) / Path("Signals/Algo1/female_inst_sim_2.wav"),
-            ],
-            "Algo2_SASSEC": [
-                Path(SASSEC_PATH) / Path("Signals/Algo2/female_inst_sim_1.wav"),
-                Path(SASSEC_PATH) / Path("Signals/Algo2/female_inst_sim_2.wav"),
-            ],
-        },
-    },
-    {
-        "mixture_id": "male_pair_example",
-        "references": [
-            Path(SASSEC_PATH) / Path("Signals/orig/male_inst_sim_1.wav"),
-            Path(SASSEC_PATH) / Path("Signals/orig/male_inst_sim_2.wav"),
-        ],
-        "systems": {
-            "Algo1_SASSEC": [
-                Path(SASSEC_PATH) / Path("Signals/Algo1/male_inst_sim_1.wav"),
-                Path(SASSEC_PATH) / Path("Signals/Algo1/male_inst_sim_2.wav"),
-            ],
-        },
-    },
-]
+```bash
+pip install mapss-measures
 ```
 
-### 3. Run the experiment
-- **Windows (PowerShell):**
-  ```powershell
-  python main.py --manifest .\Manifests\example_English.py --model wav2vec2 --alpha 1.0 --layer 2 --verbose
-  ```
-- **Linux / macOS:**
-  ```bash
-  python main.py --manifest ./Manifests/example_English.py --model wav2vec2 --alpha 1.0 --layer 2 --verbose
-  ```
+Directly from the current GitHub version:
 
-Results and parameters are stored automatically in the `results/` directory.
+```bash
+pip install "git+https://github.com/Amir-Ivry/MAPSS-measures.git"
+```
 
-### 4. Output interpretation
-Assume a mixture of three sources. The output of both the PS and PM measures, will take this format:
-![Screenshot of the app](assets/example_of_output.png)
+MAPSS supports Python 3.10-3.12. The default backbone is downloaded from Hugging Face
+on first use. A CUDA GPU is recommended; CPU execution is supported but slower.
 
-For every timestamps in milliseconds, every source either has value or is blank. Values of measures appear for active sources, as long as there were at least two. Non-active sources remain blank.
+## Python quick start
 
----
+```python
+from mapss import mapss
 
-## Citing
+result = mapss(
+    reference=["reference_speaker_1.wav", "reference_speaker_2.wav"],
+    output=["estimate_speaker_1.wav", "estimate_speaker_2.wav"],
+)
 
-If you use this work, please cite:
+print(result.summary)
+print(result.ps)  # frame-level Perceptual Separation
+print(result.pm)  # frame-level Perceptual Match
+result.save("mapss_results")
+```
+
+Source order is meaningful: `output[i]` must estimate `reference[i]`. MAPSS evaluates
+source separation, so at least two reference/output sources are required.
+
+### In-memory waveforms
+
+```python
+import soundfile as sf
+from mapss import mapss
+
+ref_1, sr = sf.read("reference_1.wav")
+ref_2, _ = sf.read("reference_2.wav")
+out_1, _ = sf.read("output_1.wav")
+out_2, _ = sf.read("output_2.wav")
+
+result = mapss(
+    reference=[ref_1, ref_2],
+    output=[out_1, out_2],
+    sample_rate=sr,
+    source_names=["speaker_1", "speaker_2"],
+    model="wav2vec2",
+    layer=2,
+    alpha=1.0,
+)
+```
+
+Two-dimensional NumPy arrays or PyTorch tensors shaped `(sources, samples)` are also
+accepted. Inputs are converted to mono and resampled to the paper's 16 kHz operating rate.
+
+## What the result contains
+
+```python
+result.ps          # pandas.DataFrame: timestamp_ms + one column per source
+result.pm          # pandas.DataFrame: timestamp_ms + one column per source
+result.ci          # confidence/error components, or None when add_ci=False
+result.summary     # mean PS/PM and valid-frame counts per source
+result.source_names
+```
+
+Inactive frames are `NaN` and are excluded from the convenience means. For reported
+challenge results, retain the frame tables and state the aggregation you use. The paper's
+PM utterance score is a mean over active frames; its PS analysis uses the pooling procedure
+defined in Appendix B.4 rather than a plain mean.
+
+## Important keyword arguments
+
+| Argument | Default | Meaning |
+|---|---:|---|
+| `model` | `"wav2vec2"` | Self-supervised representation; the default is wav2vec 2.0 Large. |
+| `layer` | `2` | Paper-selected transformer layer for the default English setup. |
+| `alpha` | `1.0` | Diffusion-map density normalization in `[0, 1]`. |
+| `add_ci` | `True` | Compute the paper's deterministic/probabilistic error components. |
+| `seed` | `42` | Seed used by MAPSS and its distortion bank. |
+| `max_gpus` | all available | Maximum GPUs; use `0` to force CPU. |
+| `length_policy` | `"error"` | Reject unequal lengths, or use `"trim"` explicitly. |
+
+Supported models are `wav2vec2`, `wavlm`, `hubert`, their `_base` variants,
+`wav2vec2_xlsr`, and `raw`. `raw` bypasses self-supervised encoding and is useful for
+development smoke tests; it is not the paper's recommended reporting configuration.
+
+## Command line
+
+```bash
+mapss \
+  --reference reference_1.wav reference_2.wav \
+  --output estimate_1.wav estimate_2.wav \
+  --model wav2vec2 --layer 2 \
+  --results-dir mapss_results
+```
+
+The historical manifest workflow remains supported:
+
+```bash
+mapss --manifest Manifests/example_English.json --model wav2vec2 --layer 2
+```
+
+## Before reporting a challenge result
+
+1. Keep reference and output source order identical.
+2. Report the package version, model, layer, `alpha`, seed, and aggregation.
+3. Do not replace inactive-frame `NaN` values with zeros.
+4. Use the same settings for every submitted system.
+5. Cite the MAPSS paper and link this repository.
+
+See the [challenge integration guide](docs/CHALLENGE_GUIDE.md), the complete
+[Python API reference](docs/API.md), and [testing instructions](TESTING.md).
+
+## Citation
 
 ```bibtex
-@article{ivry2026mapss,
-  title={MAPSS: Manifold-based Assessment of Perceptual Source Separation},
-  author={Ivry, Amir and Cornell, Samuele and Watanabe, Shinji},
-  journal={International Conference on Learning Representations (ICLR)},
-  year={2026}
+@inproceedings{ivry2026mapss,
+  title     = {MAPSS: Manifold-based Assessment of Perceptual Source Separation},
+  author    = {Ivry, Amir and Cornell, Samuele and Watanabe, Shinji},
+  booktitle = {International Conference on Learning Representations},
+  year      = {2026}
 }
-
 ```
-MIT License
 
-Copyright (c) 2025 MAPSS contributors
+## License
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
+MIT. See [LICENSE](LICENSE).

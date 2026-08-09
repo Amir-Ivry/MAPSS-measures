@@ -1,17 +1,80 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
-[tool.black]
-line-length = 88
-target-version = ["py311"]
+[project]
+name = "mapss-measures"
+version = "1.1.0"
+description = "Manifold-based perceptual measures for source separation"
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+license = "MIT"
+authors = [
+  {name = "Amir Ivry"},
+  {name = "Samuele Cornell"},
+  {name = "Shinji Watanabe"},
+]
+keywords = [
+  "audio",
+  "perceptual-metric",
+  "source-separation",
+  "speech",
+  "music",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Multimedia :: Sound/Audio :: Analysis",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+  "numpy>=1.26,<3",
+  "scipy>=1.12,<2",
+  "librosa>=0.11,<0.12",
+  "soundfile>=0.12,<0.14",
+  "pyloudnorm>=0.1,<0.2",
+  "pandas>=2.2,<3",
+  "torch>=2.2,<3",
+  "transformers>=4.40,<4.53",
+]
+
+[project.optional-dependencies]
+test = [
+  "build>=1.2,<2",
+  "pytest>=8,<9",
+  "pytest-cov>=5,<7",
+  "ruff>=0.9,<1",
+  "twine>=5,<7",
+]
+
+[project.scripts]
+mapss = "mapss.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Amir-Ivry/MAPSS-measures"
+Documentation = "https://github.com/Amir-Ivry/MAPSS-measures#readme"
+Paper = "https://arxiv.org/abs/2509.09212"
+Issues = "https://github.com/Amir-Ivry/MAPSS-measures/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.ruff]
-line-length = 88
-target-version = "py311"
-select = ["E","F","I","UP"]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E9", "F"]
 ignore = ["E501"]
 
 [tool.pytest.ini_options]
-addopts = "-q -ra"
+addopts = "-q -ra --strict-markers"
 testpaths = ["tests"]
+markers = [
+  "integration: end-to-end tests that execute the MAPSS engine",
+]

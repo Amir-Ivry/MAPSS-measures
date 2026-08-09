@@ -9,6 +9,13 @@ venv/
 
 # Results and artifacts
 results/
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
 # Audio files (large assets)
 *.wav
@@ -18,9 +25,3 @@ results/
 .DS_Store
 Thumbs.db
 .idea/
-
-# GitHub specific
-.github/
-
-# Testing
-tests/

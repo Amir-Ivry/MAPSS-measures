@@ -7,7 +7,7 @@ import numpy as np
 from numpy.fft import irfft, rfft, rfftfreq
 from scipy.signal import butter, filtfilt, lfilter
 
-from config import ENERGY_WIN_MS, EPS, SR
+from .config import ENERGY_WIN_MS, EPS, SR
 
 
 def sig_stats(x):

@@ -117,6 +117,10 @@ def canonicalize_mixtures(mixtures, systems=None):
                 for algo, outs in m["systems"].items():
                     sysmap[str(algo)] = as_paths(outs)
             spk_ids = [speaker_id_from_ref(r, i, mid) for i, r in enumerate(refs)]
+            if len(set(spk_ids)) != len(spk_ids):
+                raise ValueError(
+                    f"Mixture {mid}: reference filenames must have unique stems."
+                )
             canon.append(Mixture(mid, refs, sysmap, spk_ids))
         return canon
 
@@ -148,11 +152,12 @@ def safe_cov_torch(X):
     :param X: array to compute covariance matrix of.
     :return: regularized covariance matrix.
     """
+    if X.ndim != 2 or X.shape[0] < 2:
+        raise ValueError("Covariance requires at least two observations.")
     Xc = X - X.mean(dim=0, keepdim=True)
     cov = Xc.T @ Xc / (Xc.shape[0] - 1)
-    if torch.linalg.matrix_rank(cov) < cov.shape[0]:
-        cov += torch.eye(cov.shape[0], device=cov.device) * 1e-6
-    return cov
+    eye = torch.eye(cov.shape[0], device=cov.device, dtype=cov.dtype)
+    return cov + eye * 1e-6
 
 
 def mahalanobis_torch(x, mu, inv):
@@ -165,4 +170,5 @@ def mahalanobis_torch(x, mu, inv):
     """
     diff = x - mu
     diff_T = diff.transpose(-1, -2) if diff.ndim >= 2 else diff
-    return torch.sqrt(diff @ inv @ diff_T + 1e-6)
+    squared = diff @ inv @ diff_T
+    return torch.sqrt(torch.clamp(squared, min=0) + 1e-6)
