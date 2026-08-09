@@ -4,8 +4,6 @@ on:
   push:
     tags:
       - "v*"
-    branches:
-      - "release/v1.1.0"
 
 concurrency:
   group: publish-${{ github.ref }}
