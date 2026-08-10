@@ -1,6 +1,7 @@
 # Compatibility file for existing clone-based workflows.
 # New users should run: pip install .
-numpy>=1.26,<3
+numpy>=1.26,<2.4
+numba>=0.61,<0.64
 scipy>=1.12,<2
 librosa>=0.11,<0.12
 soundfile>=0.12,<0.14

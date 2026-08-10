@@ -63,5 +63,4 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "MAPSS ${RELEASE_TAG#v}" \
-            --generate-notes \
-            --notes "First practitioner-facing MAPSS Python package, with a two-argument waveform API, validation, cross-platform tests, and challenge-integration documentation."
+            --generate-notes

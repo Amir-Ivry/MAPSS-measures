@@ -8,8 +8,8 @@ authors:
     given-names: "Samuele"
   - family-names: "Watanabe"
     given-names: "Shinji"
-version: "1.1.0"
-date-released: "2026-08-09"
+version: "1.1.1"
+date-released: "2026-08-11"
 identifiers:
   - type: "arxiv"
     value: "2509.09212v3"

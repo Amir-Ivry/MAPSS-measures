@@ -36,6 +36,20 @@ jobs:
       - run: python -m pip install -e ".[test]"
       - run: ruff check .
       - run: pytest -m "not integration"
+      - name: Test PowerShell practitioner workflow
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          python examples/smoke_test.py --output-dir smoke_seed
+          .\examples\run_mapss.ps1 `
+            -Reference @("smoke_seed/audio/reference_1.wav", "smoke_seed/audio/reference_2.wav") `
+            -Output @("smoke_seed/audio/output_1.wav", "smoke_seed/audio/output_2.wav") `
+            -SourceName @("source_1", "source_2") `
+            -Python "python" -Model "raw" -Layer 0 -MaxGpus 0 -NoCI `
+            -ResultsDir "powershell_results"
+          if (-not (Test-Path "powershell_results/summary.csv")) {
+            throw "PowerShell example did not create summary.csv"
+          }
 
   raw-integration:
     runs-on: ubuntu-latest
@@ -48,6 +62,7 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[test]"
       - run: pytest -m integration
+      - run: python examples/smoke_test.py --output-dir smoke_results
 
   package:
     runs-on: ubuntu-latest
@@ -59,3 +74,12 @@ jobs:
       - run: python -m pip install --upgrade build twine
       - run: python -m build
       - run: python -m twine check dist/*
+      - name: Verify built wheel in a clean environment
+        run: |
+          python -m venv wheel-check
+          wheel-check/bin/python -m pip install --upgrade pip
+          wheel-check/bin/python -m pip install "dist/mapss_measures-1.1.1-py3-none-any.whl[plot]"
+          wheel-check/bin/python -m pip check
+          wheel-check/bin/python -c "import mapss; assert mapss.__version__ == '1.1.1'"
+          wheel-check/bin/python -m mapss --help
+          wheel-check/bin/python -m mapss.plotting --help

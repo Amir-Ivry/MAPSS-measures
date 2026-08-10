@@ -1,31 +1,33 @@
+import os
 from pathlib import Path
 
-SASSEC_PATH = "C:/postdoc/R1 - PS and PM/Data - speech separation MOS/SASSEC"  # full path
+# Set SASSEC_PATH to the extracted dataset root, or place SASSEC in the current directory.
+SASSEC_PATH = Path(os.environ.get("SASSEC_PATH", "SASSEC")).expanduser()
 
 MANIFEST = [
     {
         "mixture_id": "female_pair_example",
         "references": [
-            Path(SASSEC_PATH) / Path("Signals/orig/female_inst_sim_3.wav"),
-            Path(SASSEC_PATH) / Path("Signals/orig/female_inst_sim_4.wav"),
+            SASSEC_PATH / "Signals/orig/female_inst_sim_3.wav",
+            SASSEC_PATH / "Signals/orig/female_inst_sim_4.wav",
         ],
         "systems": {
             "Algo1_SASSEC": [
-                Path(SASSEC_PATH) / Path("Signals/Algo1/female_inst_sim_3.wav"),
-                Path(SASSEC_PATH) / Path("Signals/Algo1/female_inst_sim_4.wav"),
+                SASSEC_PATH / "Signals/Algo1/female_inst_sim_3.wav",
+                SASSEC_PATH / "Signals/Algo1/female_inst_sim_4.wav",
             ],
         },
     },
     {
         "mixture_id": "male_pair_example",
         "references": [
-            Path(SASSEC_PATH) / Path("Signals/orig/male_inst_sim_3.wav"),
-            Path(SASSEC_PATH) / Path("Signals/orig/male_inst_sim_4.wav"),
+            SASSEC_PATH / "Signals/orig/male_inst_sim_3.wav",
+            SASSEC_PATH / "Signals/orig/male_inst_sim_4.wav",
         ],
         "systems": {
             "Algo1_SASSEC": [
-                Path(SASSEC_PATH) / Path("Signals/Algo1/male_inst_sim_3.wav"),
-                Path(SASSEC_PATH) / Path("Signals/Algo1/male_inst_sim_4.wav"),
+                SASSEC_PATH / "Signals/Algo1/male_inst_sim_3.wav",
+                SASSEC_PATH / "Signals/Algo1/male_inst_sim_4.wav",
             ],
         },
     },

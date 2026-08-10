@@ -9,6 +9,14 @@ venv/
 
 # Results and artifacts
 results/
+mapss_results/
+mapss_smoke_results/
+smoke_results/
+smoke_seed/
+powershell_results/
+pretrained_smoke/
+wheel-check/
+wheel_smoke/
 build/
 dist/
 *.egg-info/

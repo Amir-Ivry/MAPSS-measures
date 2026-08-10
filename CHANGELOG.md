@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.1 - 2026-08-11
+
+- Add a clean-laptop quick start for Windows PowerShell, Linux, and macOS.
+- Add tested Python and PowerShell examples for ordered reference/output paths.
+- Add the optional `mapss-plot` command for plotting frame-level PS and PM scores.
+- Add interpretation, troubleshooting, and reproducibility documentation.
+- Replace machine-specific SASSEC manifest paths with portable templates.
+- Constrain NumPy/Numba compatibility to prevent invalid clean-environment resolution.
+- Validate examples, documentation links, plotting, and built-wheel installation in CI.
+
 ## 1.1.0 - 2026-08-09
 
 - Add the installable `mapss-measures` distribution and `mapss` import package.
