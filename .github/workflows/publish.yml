@@ -2,6 +2,8 @@ name: Publish to PyPI
 
 on:
   push:
+    branches:
+      - "release-v*"
     tags:
       - "v*"
 
@@ -13,6 +15,44 @@ permissions:
   contents: read
 
 jobs:
+  create-release-tag:
+    if: startsWith(github.ref, 'refs/heads/release-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate version and create annotated tag
+        shell: bash
+        run: |
+          release_tag="${GITHUB_REF_NAME#release-}"
+          if [[ ! "$release_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid release branch: $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+
+          git fetch origin main --tags
+          package_version="$(git show origin/main:pyproject.toml | sed -n 's/^version = "\(.*\)"/\1/p' | head -n 1)"
+          if [[ "$release_tag" != "v$package_version" ]]; then
+            echo "Release tag $release_tag does not match main package version $package_version" >&2
+            exit 1
+          fi
+          if [[ "$(git rev-parse HEAD^{tree})" != "$(git rev-parse origin/main^{tree})" ]]; then
+            echo "Release branch contents do not exactly match main." >&2
+            exit 1
+          fi
+          if git rev-parse "$release_tag" >/dev/null 2>&1; then
+            echo "Tag $release_tag already exists." >&2
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$release_tag" origin/main -m "MAPSS practitioner release $package_version"
+          git push origin "refs/tags/$release_tag"
+
   build:
     runs-on: ubuntu-latest
     steps:
@@ -30,7 +70,11 @@ jobs:
           path: dist/
 
   publish:
-    needs: build
+    needs: [create-release-tag, build]
+    if: >-
+      always() &&
+      needs.build.result == 'success' &&
+      (needs.create-release-tag.result == 'success' || needs.create-release-tag.result == 'skipped')
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -57,10 +101,12 @@ jobs:
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.1.0' }}
         run: |
-          gh release create "$RELEASE_TAG" dist/* \
+          release_tag="$GITHUB_REF_NAME"
+          if [[ "$GITHUB_REF" == refs/heads/release-v* ]]; then
+            release_tag="${GITHUB_REF_NAME#release-}"
+          fi
+          gh release create "$release_tag" dist/* \
             --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" \
-            --title "MAPSS ${RELEASE_TAG#v}" \
+            --title "MAPSS ${release_tag#v}" \
             --generate-notes

@@ -23,6 +23,16 @@ git push origin v1.1.1
 The tag workflow tests the tagged commit, builds the wheel and source distribution,
 publishes them to PyPI, and creates a GitHub release with both artifacts.
 
+If the GitHub CLI is unavailable, push a temporary release branch instead:
+
+```bash
+git push origin main:release-v1.1.1
+```
+
+GitHub Actions checks that the branch contents and version exactly match `main`, creates the
+annotated tag on the `main` commit, and runs the same tested build and publishing jobs. Delete
+the temporary branch after the release completes.
+
 ## Post-release verification
 
 Use an empty directory and environment:
