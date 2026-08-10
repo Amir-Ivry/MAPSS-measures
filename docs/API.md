@@ -49,6 +49,7 @@ mapss(
 - `add_ci`: computes the deterministic and high-probability error components.
 - `seed`: controls stochastic distortions and PyTorch/NumPy randomness.
 - `max_gpus`: `None` uses all visible GPUs; `0` forces CPU.
+- `length_policy`: `"error"` rejects unequal lengths; `"trim"` trims to the shortest.
 - `verbose`: prints engine progress when true.
 
 ### Return value
@@ -96,3 +97,16 @@ result.save("results/team_system_a")
 ```
 
 Record all arguments and the installed `mapss-measures` version with any leaderboard result.
+
+## Plotting saved results
+
+Install the optional plotting dependency and plot all PS/PM source columns:
+
+```bash
+python -m pip install "mapss-measures[plot]==1.1.1"
+python -m mapss.plotting results/team_system_a
+```
+
+The equivalent console command is `mapss-plot results/team_system_a`. The plotting utility
+requires `ps_scores.csv` and `pm_scores.csv` from the same evaluation and writes
+`ps_pm_over_time.png` by default.
