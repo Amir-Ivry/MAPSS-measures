@@ -63,7 +63,7 @@ the PM aggregation and the Appendix B.4 PS pooling procedure defined in the ICLR
 Install an exact version in evaluation infrastructure:
 
 ```text
-mapss-measures==1.1.1
+mapss-measures==1.1.2
 ```
 
 Do not evaluate some systems from a moving GitHub `main` branch and others from PyPI.

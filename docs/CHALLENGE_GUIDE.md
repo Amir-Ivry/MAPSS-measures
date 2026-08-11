@@ -5,7 +5,7 @@
 Pin one released version in the challenge evaluator:
 
 ```text
-mapss-measures==1.1.1
+mapss-measures[plot]==1.1.2
 ```
 
 For each mixture, pass the ordered reference sources and the corresponding ordered system
@@ -24,7 +24,7 @@ scores = mapss(
     seed=42,
     max_gpus=1,
 )
-scores.save(output_directory)
+scores.save(output_directory, plot=True)
 ```
 
 The evaluator should validate the source-to-reference assignment before calling MAPSS. MAPSS
@@ -34,7 +34,7 @@ make systems incomparable.
 ## Recommended public challenge statement
 
 > We report MAPSS Perceptual Separation (PS) and Perceptual Match (PM) using
-> `mapss-measures==1.1.1`, wav2vec 2.0 Large layer 2, `alpha=1`, and seed 42.
+> `mapss-measures==1.1.2`, wav2vec 2.0 Large layer 2, `alpha=1`, and seed 42.
 > Higher is better. Outputs are ordered to match their reference sources. Frames with fewer
 > than two active references are excluded. Code and definitions are available in the MAPSS
 > repository and ICLR 2026 paper.
@@ -68,5 +68,6 @@ Do not convert inactive `NaN` frames to zero. That would penalize silence rather
 > MAPSS is now available as a Python package for frame-level evaluation of source
 > separation. Give it ordered reference and output waveforms; it returns complementary
 > Perceptual Separation (leakage) and Perceptual Match (self-distortion) scores in `[0, 1]`,
-> with optional paper-derived error quantities. Install version 1.1.1 with
-> `pip install mapss-measures==1.1.1`, view the quick start, and cite the ICLR 2026 paper.
+> with optional paper-derived error quantities and a paper-style time-aligned diagnostic.
+> Install version 1.1.2 with `pip install "mapss-measures[plot]==1.1.2"`, view the quick
+> start, and cite the ICLR 2026 paper.

@@ -16,6 +16,7 @@ param(
     [string]$LengthPolicy = "error",
     [string]$ResultsDir = "mapss_results",
     [switch]$NoCI,
+    [switch]$Plot,
     [switch]$VerboseOutput
 )
 
@@ -29,6 +30,9 @@ if ($Reference.Count -ne $Output.Count) {
 }
 if ($SourceName -and $SourceName.Count -ne $Reference.Count) {
     throw "SourceName must contain one unique name per source."
+}
+if ($Plot -and $NoCI) {
+    throw "Plot cannot be combined with NoCI because the paper-style figure includes confidence quantities."
 }
 
 foreach ($Path in ($Reference + $Output)) {
@@ -56,6 +60,9 @@ foreach ($Name in $SourceName) {
 }
 if ($NoCI) {
     $MapssArguments += "--no-ci"
+}
+if ($Plot) {
+    $MapssArguments += "--plot"
 }
 if ($VerboseOutput) {
     $MapssArguments += "--verbose"
