@@ -45,10 +45,13 @@ jobs:
             -Reference @("smoke_seed/audio/reference_1.wav", "smoke_seed/audio/reference_2.wav") `
             -Output @("smoke_seed/audio/output_1.wav", "smoke_seed/audio/output_2.wav") `
             -SourceName @("source_1", "source_2") `
-            -Python "python" -Model "raw" -Layer 0 -MaxGpus 0 -NoCI `
+            -Python "python" -Model "raw" -Layer 0 -MaxGpus 0 -Plot `
             -ResultsDir "powershell_results"
           if (-not (Test-Path "powershell_results/summary.csv")) {
             throw "PowerShell example did not create summary.csv"
+          }
+          if (-not (Test-Path "powershell_results/mapss_over_time.png")) {
+            throw "PowerShell example did not create mapss_over_time.png"
           }
 
   raw-integration:
@@ -78,8 +81,8 @@ jobs:
         run: |
           python -m venv wheel-check
           wheel-check/bin/python -m pip install --upgrade pip
-          wheel-check/bin/python -m pip install "dist/mapss_measures-1.1.1-py3-none-any.whl[plot]"
+          wheel-check/bin/python -m pip install "dist/mapss_measures-1.1.2-py3-none-any.whl[plot]"
           wheel-check/bin/python -m pip check
-          wheel-check/bin/python -c "import mapss; assert mapss.__version__ == '1.1.1'"
+          wheel-check/bin/python -c "import mapss; assert mapss.__version__ == '1.1.2'"
           wheel-check/bin/python -m mapss --help
           wheel-check/bin/python -m mapss.plotting --help

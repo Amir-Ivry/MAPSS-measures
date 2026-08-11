@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.1.2 - 2026-08-11
+
+- Add `MAPSSResult.save(..., plot=True)` and CLI `--plot` for the paper-style six-panel
+  PM, PS, deterministic-radius, and probabilistic-95%-bound figure.
+- Validate the complete raw engine with confidence and plotting for N=2, N=3, and N=4.
+- Add end-to-end coverage for mixed WAV/FLAC inputs, sample-rate conversion, stereo
+  downmixing, and explicit shortest-duration trimming.
+- Add early, source-specific guardrails for count and duration mismatches, corrupt audio,
+  invalid waveform layouts, naming conflicts, option types, CUDA requests, and malformed
+  plotting tables.
+- Add dedicated input-contract and CPU/CUDA documentation, including first-run checkpoint
+  and Hugging Face cache-warning guidance.
+
 ## 1.1.1 - 2026-08-11
 
 - Add a clean-laptop quick start for Windows PowerShell, Linux, and macOS.

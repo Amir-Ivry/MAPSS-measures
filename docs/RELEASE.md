@@ -13,11 +13,11 @@ Publishing. Do not use a long-lived PyPI token.
 5. For scientific changes, run the pretrained paper configuration and preserve inputs,
    arguments, environment versions, and result hashes.
 
-## Release 1.1.1
+## Release 1.1.2
 
 ```bash
-git tag -a v1.1.1 -m "MAPSS practitioner release 1.1.1"
-git push origin v1.1.1
+git tag -a v1.1.2 -m "MAPSS practitioner release 1.1.2"
+git push origin v1.1.2
 ```
 
 The tag workflow tests the tagged commit, builds the wheel and source distribution,
@@ -26,7 +26,7 @@ publishes them to PyPI, and creates a GitHub release with both artifacts.
 If the GitHub CLI is unavailable, push a temporary release branch instead:
 
 ```bash
-git push origin main:release-v1.1.1
+git push origin main:release-v1.1.2
 ```
 
 GitHub Actions checks that the branch contents and version exactly match `main`, creates the
@@ -40,7 +40,7 @@ Use an empty directory and environment:
 ```bash
 python -m venv mapss-release-check
 source mapss-release-check/bin/activate
-python -m pip install "mapss-measures[plot]==1.1.1"
+python -m pip install "mapss-measures[plot]==1.1.2"
 python -m pip check
 python -c "import mapss; print(mapss.__version__)"
 python -m mapss --help
@@ -49,4 +49,4 @@ python -m mapss.plotting --help
 
 Then run one ordered-path evaluation with the default pretrained model, save the CSV files,
 and create the PS/PM plot. Confirm the PyPI project and GitHub release pages show version
-1.1.1 before updating challenge material.
+1.1.2 before updating challenge material.

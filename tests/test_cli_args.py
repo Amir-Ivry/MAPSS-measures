@@ -1,6 +1,7 @@
 import unittest
 
 from mapss._cli_args import _validate_and_resolve, _validate_gpus
+from mapss.cli import main
 
 
 class TestCLIArguments(unittest.TestCase):
@@ -14,6 +15,23 @@ class TestCLIArguments(unittest.TestCase):
         self.assertEqual(_validate_gpus(0), 0)
         with self.assertRaises(SystemExit):
             _validate_gpus(-1)
+
+    def test_plot_rejects_no_ci_before_loading_audio(self):
+        with self.assertRaisesRegex(SystemExit, "cannot be combined with --no-ci"):
+            main(
+                [
+                    "--reference",
+                    "reference_1.wav",
+                    "reference_2.wav",
+                    "--output",
+                    "output_1.wav",
+                    "output_2.wav",
+                    "--model",
+                    "raw",
+                    "--plot",
+                    "--no-ci",
+                ]
+            )
 
 
 if __name__ == "__main__":

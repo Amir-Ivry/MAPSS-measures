@@ -60,3 +60,15 @@ def test_python_examples_expose_help():
         )
         assert completed.returncode == 0, completed.stderr
         assert "usage:" in completed.stdout.lower()
+
+
+def test_practitioner_docs_cover_plotting_inputs_and_hardware():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    quickstart = (ROOT / "docs" / "QUICKSTART.md").read_text(encoding="utf-8")
+    inputs = (ROOT / "docs" / "INPUTS.md").read_text(encoding="utf-8")
+    hardware = (ROOT / "docs" / "HARDWARE.md").read_text(encoding="utf-8")
+
+    assert 'result.save("mapss_results", plot=True)' in readme
+    assert '"--plot"' in quickstart
+    assert "N=2" in inputs and "N=3" in inputs and "N=4" in inputs
+    assert "torch.cuda.is_available()" in hardware

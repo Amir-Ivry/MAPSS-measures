@@ -45,6 +45,18 @@ components derived by MAPSS. These columns should be interpreted using the defin
 assumptions in the ICLR 2026 paper; they should not be relabeled as generic confidence
 intervals without preserving that definition.
 
+For each source, the four columns are:
+
+- `<source>_pm_bias`: PM deterministic truncation-error radius;
+- `<source>_ps_bias`: PS deterministic truncation-error radius;
+- `<source>_pm_prob`: PM high-probability 95% error bound;
+- `<source>_ps_prob`: PS high-probability 95% error bound.
+
+These values are nonnegative error magnitudes. They are not additional quality scores, and
+higher is not better. `result.save(..., plot=True)` places them below PM and PS in the same
+order as the paper's Figure 11. The plotted curves show the error magnitudes themselves;
+they are not silently converted into clipped lower/upper score envelopes.
+
 ## Comparing systems
 
 For a fair comparison:

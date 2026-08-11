@@ -1,4 +1,4 @@
-"""Run MAPSS on ordered reference/output WAV paths.
+"""Run MAPSS on ordered reference/output audio paths.
 
 Example
 -------
@@ -26,6 +26,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--max-gpus", type=int, default=None)
     parser.add_argument("--no-ci", action="store_true")
+    parser.add_argument(
+        "--plot",
+        action="store_true",
+        help="Save the paper-style PS/PM and confidence figure.",
+    )
     parser.add_argument("--length-policy", choices=("error", "trim"), default="error")
     parser.add_argument("--results-dir", type=Path, default=Path("mapss_results"))
     parser.add_argument("--verbose", action="store_true")
@@ -34,6 +39,8 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.plot and args.no_ci:
+        raise SystemExit("--plot cannot be combined with --no-ci.")
     result = mapss(
         reference=args.reference,
         output=args.output,
@@ -47,7 +54,7 @@ def main(argv: list[str] | None = None) -> int:
         length_policy=args.length_policy,
         verbose=args.verbose,
     )
-    result.save(args.results_dir)
+    result.save(args.results_dir, plot=args.plot)
     print(result.summary.to_string(float_format=lambda value: f"{value:.4f}"))
     print(f"Results saved to: {args.results_dir}")
     return 0

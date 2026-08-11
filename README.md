@@ -15,19 +15,21 @@ measures in `[0, 1]`, where higher is better:
 
 The public interface accepts `N` ordered reference waveforms and the corresponding `N`
 ordered system outputs. It supports WAV paths, NumPy arrays, and PyTorch tensors.
+WAV and FLAC paths are tested directly; other formats supported by the installed
+`libsndfile` build may also be used.
 
 ## Install
 
 MAPSS supports Python 3.10-3.12.
 
 ```bash
-python -m pip install "mapss-measures==1.1.1"
+python -m pip install "mapss-measures==1.1.2"
 ```
 
 Install the optional plotting command as well:
 
 ```bash
-python -m pip install "mapss-measures[plot]==1.1.1"
+python -m pip install "mapss-measures[plot]==1.1.2"
 ```
 
 The default pretrained backbone is downloaded from Hugging Face on first use. A CUDA GPU
@@ -58,7 +60,7 @@ result = mapss(
 )
 
 print(result.summary)
-result.save("mapss_results")
+result.save("mapss_results", plot=True)
 ```
 
 > **Input contract:** `output[i]` must estimate `reference[i]`. MAPSS requires at least
@@ -78,7 +80,7 @@ python -m mapss \
   --output estimate_1.wav estimate_2.wav \
   --source-name source_1 --source-name source_2 \
   --model wav2vec2 --layer 2 --alpha 1.0 --seed 42 \
-  --results-dir mapss_results
+  --results-dir mapss_results --plot
 ```
 
 Windows PowerShell uses the same module command with backtick line continuations:
@@ -88,7 +90,7 @@ python -m mapss `
   --reference "C:\data\reference_1.wav" "C:\data\reference_2.wav" `
   --output "C:\data\estimate_1.wav" "C:\data\estimate_2.wav" `
   --model wav2vec2 --layer 2 `
-  --results-dir mapss_results
+  --results-dir mapss_results --plot
 ```
 
 Add more paths to both lists for mixtures with more sources. Keep the two lists the same
@@ -103,13 +105,19 @@ length and order.
 - `confidence.csv`: paper-derived error quantities when `add_ci=True`;
 - `summary.csv`: convenient per-source means and valid-frame counts.
 
-Plot all sources after installing the `plot` extra:
+With `add_ci=True`, `result.save("mapss_results", plot=True)` writes the paper-style,
+six-panel time-aligned figure automatically. The panels contain PM, PS, the deterministic
+error radius for each measure, and the corresponding probabilistic 95% bounds.
+
+To plot an existing result directory after installing the `plot` extra:
 
 ```bash
 python -m mapss.plotting mapss_results
 ```
 
-The figure is saved as `mapss_results/ps_pm_over_time.png`.
+The figure is saved as `mapss_results/mapss_over_time.png`. If confidence data is absent,
+the standalone plotting command remains backward compatible and creates a two-panel PS/PM
+figure; `result.save(..., plot=True)` deliberately requires confidence data.
 
 Inactive frames are stored as `NaN` and excluded from convenience means. Do not replace
 them with zero. The paper's formal PS utterance aggregation is defined in Appendix B.4 and
@@ -134,6 +142,8 @@ scientific reporting.
 ## Documentation
 
 - [Clean-laptop quick start](https://github.com/Amir-Ivry/MAPSS-measures/blob/main/docs/QUICKSTART.md)
+- [Input contract and supported audio](https://github.com/Amir-Ivry/MAPSS-measures/blob/main/docs/INPUTS.md)
+- [CPU and CUDA setup](https://github.com/Amir-Ivry/MAPSS-measures/blob/main/docs/HARDWARE.md)
 - [Python API reference](https://github.com/Amir-Ivry/MAPSS-measures/blob/main/docs/API.md)
 - [Interpreting PS and PM](https://github.com/Amir-Ivry/MAPSS-measures/blob/main/docs/INTERPRETING_RESULTS.md)
 - [Troubleshooting](https://github.com/Amir-Ivry/MAPSS-measures/blob/main/docs/TROUBLESHOOTING.md)
