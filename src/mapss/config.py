@@ -16,6 +16,8 @@ DEFAULT_ALPHA = 1.0
 
 # Defaults reproduce the paper's selected shallow-layer configuration for English.
 MODEL_DEFAULT_LAYER = {
+    # Music scenarios require an explicit choice (1 with drums, 3 without).
+    "mert": None,
     "raw": 0,
     "wavlm": 3,
     "wav2vec2": 2,
@@ -27,6 +29,7 @@ MODEL_DEFAULT_LAYER = {
 }
 
 MODEL_MAX_LAYER = {
+    "mert": 12,
     "raw": 0,
     "wavlm": 24,
     "wav2vec2": 24,
