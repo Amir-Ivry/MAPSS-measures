@@ -1,17 +1,20 @@
-# MERT for music evaluation (unreleased)
+# MERT for music evaluation
 
-The source checkout adds `model="mert"` using
-[`m-a-p/MERT-v1-95M`](https://huggingface.co/m-a-p/MERT-v1-95M). This feature is not in
-the published `mapss-measures==1.1.2` package. Install this checkout from its repository
-root, using a Python 3.10–3.12 environment with PyTorch 2.6 or later:
+MAPSS 1.2.0 adds `model="mert"` using
+[`m-a-p/MERT-v1-95M`](https://huggingface.co/m-a-p/MERT-v1-95M). Install the `mert` extra
+in a Python 3.10–3.12 environment to require PyTorch 2.6 or later, and the `plot` extra
+to save figures:
 
 ```bash
-python -m pip install -e ".[plot]"
+python -m pip install "mapss-measures[mert,plot]==1.2.0"
 ```
 
 The PyTorch 2.6 minimum applies to MERT's upstream `.bin` checkpoint; requirements for
 the other backbones are unchanged. Keep a compatible PyTorch/CUDA installation for your
 machine. The first run downloads the checkpoint from Hugging Face.
+
+For development from a source checkout, run `python -m pip install -e ".[mert,plot]"`
+from the repository root. Earlier PyPI releases through 1.1.2 do not include MERT.
 
 ## Python example
 

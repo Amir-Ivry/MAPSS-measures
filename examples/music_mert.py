@@ -1,6 +1,6 @@
-"""Evaluate ordered music references and estimates with the unreleased MERT backend.
+"""Evaluate ordered music references and estimates with the MERT backend.
 
-Run from an installed source checkout, for example:
+Install mapss-measures[mert,plot]>=1.2.0, then run this example from the repository:
 python examples/music_mert.py --reference ref_1.wav ref_2.wav \
     --output est_1.wav est_2.wav --layer 1 --max-gpus 0 --plot
 """

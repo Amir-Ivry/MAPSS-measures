@@ -7,7 +7,7 @@ installation and execution:
 
 ```powershell
 $python = ".\.venv\Scripts\python.exe"
-& $python -m pip install "mapss-measures==1.1.2"
+& $python -m pip install "mapss-measures==1.2.0"
 & $python -c 'import mapss; print(mapss.__version__); print(mapss.__file__)'
 ```
 
@@ -16,7 +16,7 @@ $python = ".\.venv\Scripts\python.exe"
 Do not install MAPSS with `--no-deps`. Repair the environment with:
 
 ```powershell
-& $python -m pip install --no-cache-dir --force-reinstall "mapss-measures==1.1.2"
+& $python -m pip install --no-cache-dir --force-reinstall "mapss-measures==1.2.0"
 & $python -m pip check
 ```
 
@@ -90,7 +90,7 @@ a compatible CUDA-enabled PyTorch build in the same virtual environment.
 Install the optional plotting dependency in the same environment:
 
 ```powershell
-& $python -m pip install "mapss-measures[plot]==1.1.2"
+& $python -m pip install "mapss-measures[plot]==1.2.0"
 ```
 
 Then run:
