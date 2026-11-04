@@ -37,10 +37,12 @@ def _parser() -> argparse.ArgumentParser:
         help="Source label; repeat once per ordered source.",
     )
     parser.add_argument(
-        "--model", default="wav2vec2", help="Representation backbone (default: wav2vec2)."
+        "--model", default="wav2vec2",
+        help="Representation backbone (default: wav2vec2); MERT requires --layer."
     )
     parser.add_argument(
-        "--layer", type=int, default=None, help="Representation layer (default: model-specific)."
+        "--layer", type=int, default=None,
+        help="Representation layer (default: model-specific; required for MERT)."
     )
     parser.add_argument(
         "--alpha", type=float, default=1.0, help="Diffusion-map alpha in [0, 1]."
@@ -60,7 +62,8 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Save the paper-style PS/PM and confidence figure. Requires the "
-            "'[plot]' extra and cannot be combined with --no-ci."
+            "'[plot]' extra. MERT with --no-ci produces a two-panel score-only plot; "
+            "other models cannot combine --plot with --no-ci."
         ),
     )
     parser.add_argument(
@@ -83,7 +86,6 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     layer, alpha = _validate_and_resolve(args.model, args.layer, args.alpha)
     max_gpus = _validate_gpus(args.max_gpus)
-
     if args.manifest is not None:
         if args.output is not None:
             raise SystemExit("--output cannot be combined with --manifest.")
@@ -107,7 +109,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.output:
         raise SystemExit("--output is required with --reference.")
-    if args.plot and args.no_ci:
+    if args.plot and args.no_ci and args.model != "mert":
         raise SystemExit(
             "--plot cannot be combined with --no-ci because the paper-style figure "
             "includes confidence quantities."

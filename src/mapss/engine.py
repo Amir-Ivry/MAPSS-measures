@@ -79,6 +79,18 @@ def compute_mapss_measures(
     :param results_root: directory where experiment artifacts are written.
 
     """
+    if isinstance(models, (list, tuple)) and "mert" in models:
+        if list(models) != ["mert"]:
+            raise ValueError("Run MERT separately from other models in a manifest evaluation.")
+        from ._mert_manifest import compute_mert_manifest
+
+        return compute_mert_manifest(
+            mixtures, systems=systems, algos=algos, experiment_id=experiment_id,
+            layer=layer, add_ci=add_ci, alpha=alpha, seed=seed,
+            on_missing=on_missing, verbose=verbose, max_gpus=max_gpus,
+            results_root=results_root,
+        )
+
     if not models:
         raise ValueError("models must contain at least one model name.")
     if not (0.0 <= float(alpha) <= 1.0):

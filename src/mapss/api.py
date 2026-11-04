@@ -232,6 +232,11 @@ def _resolve_options(model: str, layer: int | None, alpha: float, max_gpus: int 
         not isinstance(layer, Integral) or isinstance(layer, (bool, np.bool_))
     ):
         raise TypeError("layer must be an integer or None.")
+    if model == "mert" and layer is None:
+        raise ValueError(
+            "layer must be provided for 'mert': use layer=1 for music with drums "
+            "or layer=3 for music without drums."
+        )
     resolved_layer = MODEL_DEFAULT_LAYER[model] if layer is None else int(layer)
     if not 0 <= resolved_layer <= MODEL_MAX_LAYER[model]:
         raise ValueError(
@@ -285,7 +290,7 @@ def mapss(
         must correspond to reference source ``i``.
     sample_rate:
         Sample rate for in-memory arrays. File inputs carry their own sample rate.
-        Inputs are resampled to the paper's 16 kHz operating rate.
+        Inputs are resampled to 16 kHz, or 24 kHz when model='mert'.
     model, layer, alpha, add_ci, seed, max_gpus:
         MAPSS settings. The default is the paper-selected wav2vec 2.0 Large,
         transformer layer 2, with diffusion-map ``alpha=1``.
@@ -356,6 +361,24 @@ def mapss(
             raise ValueError("source_names must be unique after surrounding spaces are removed.")
         if "timestamp_ms" in names:
             raise ValueError("source_names cannot use the reserved name 'timestamp_ms'.")
+
+    if model == "mert":
+        # Keep the established 16 kHz path below unchanged for every other model.
+        from ._mert import evaluate_mert
+
+        return evaluate_mert(
+            references,
+            outputs,
+            sample_rate=int(sample_rate),
+            source_names=names,
+            layer=resolved_layer,
+            alpha=float(alpha),
+            add_ci=add_ci,
+            seed=int(seed),
+            max_gpus=max_gpus,
+            length_policy=length_policy,
+            verbose=verbose,
+        )
 
     ref_arrays = [
         _as_mono_array(item, sample_rate, f"reference[{index}]")

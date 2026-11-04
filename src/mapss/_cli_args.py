@@ -74,13 +74,13 @@ def _parse_args():
         required=True,
         help=("Embedding model. Choices: "
               "raw, wavlm, wav2vec2, hubert, wavlm_base, wav2vec2_base, "
-              "hubert_base, wav2vec2_xlsr"),
+              "hubert_base, wav2vec2_xlsr, mert"),
     )
     parser.add_argument(
         "--layer",
         type=int,
         default=None,
-        help="Optional layer (validated per model). Omit to use the model default.",
+        help="Optional layer (validated per model); required for MERT.",
     )
     parser.add_argument(
         "--alpha",

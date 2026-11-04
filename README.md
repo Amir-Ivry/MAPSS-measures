@@ -66,7 +66,7 @@ result.save("mapss_results", plot=True)
 > **Input contract:** `output[i]` must estimate `reference[i]`. MAPSS requires at least
 > two sources and does not silently find or change the source assignment.
 
-Inputs are downmixed to mono and resampled to the paper's 16 kHz operating rate. By
+Inputs are downmixed to mono and resampled to 16 kHz (24 kHz for the unreleased MERT backend). By
 default, unequal signal durations are rejected; use `length_policy="trim"` only when
 shortest-length alignment is intentional.
 
@@ -117,7 +117,10 @@ python -m mapss.plotting mapss_results
 
 The figure is saved as `mapss_results/mapss_over_time.png`. If confidence data is absent,
 the standalone plotting command remains backward compatible and creates a two-panel PS/PM
-figure; `result.save(..., plot=True)` deliberately requires confidence data.
+figure; `result.save(..., plot=True)` deliberately requires confidence data for the existing
+backbones. The unreleased MERT backend supports the six-panel figure with the default
+`add_ci=True`, and a two-panel score-only figure with `add_ci=False`; see the
+[MERT guide](docs/MERT.md).
 
 Inactive frames are stored as `NaN` and excluded from convenience means. Do not replace
 them with zero. The paper's formal PS utterance aggregation is defined in Appendix B.4 and
@@ -139,6 +142,12 @@ Supported representations are `wav2vec2`, `wavlm`, `hubert`, their `_base` varia
 `wav2vec2_xlsr`, and `raw`. The `raw` model is only for fast installation tests, not
 scientific reporting.
 
+The source checkout additionally supports **`mert` for music**. It requires an explicit
+layer (`1` for the paper's music-with-drums setting, `3` without drums) and PyTorch 2.6
+or later. Confidence calculations are enabled by default. MERT is not included in
+PyPI version 1.1.2; follow the
+[source-install instructions and music examples](docs/MERT.md).
+
 ## Documentation
 
 - [Clean-laptop quick start](https://github.com/Amir-Ivry/MAPSS-measures/blob/main/docs/QUICKSTART.md)
@@ -148,6 +157,7 @@ scientific reporting.
 - [Interpreting PS and PM](https://github.com/Amir-Ivry/MAPSS-measures/blob/main/docs/INTERPRETING_RESULTS.md)
 - [Troubleshooting](https://github.com/Amir-Ivry/MAPSS-measures/blob/main/docs/TROUBLESHOOTING.md)
 - [Reproducible evaluation](https://github.com/Amir-Ivry/MAPSS-measures/blob/main/docs/REPRODUCIBILITY.md)
+- [MERT music evaluation (unreleased)](docs/MERT.md)
 - [Grand-challenge integration](https://github.com/Amir-Ivry/MAPSS-measures/blob/main/docs/CHALLENGE_GUIDE.md)
 - [Examples](https://github.com/Amir-Ivry/MAPSS-measures/tree/main/examples)
 

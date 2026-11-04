@@ -31,7 +31,8 @@ and path.
 
 ## Conversion and duration
 
-Every source is independently downmixed to mono and resampled to 16 kHz. MAPSS then
+Every source is independently downmixed to mono and resampled to 16 kHz, or directly
+to 24 kHz for the unreleased `model="mert"` backend. MAPSS then
 requires all converted references and outputs to have exactly equal duration. The default
 `length_policy="error"` reports the duration and sample count of every input when they
 differ.
@@ -39,6 +40,10 @@ differ.
 Use `length_policy="trim"` only when discarding all samples beyond the shortest input is
 scientifically intended. It never pads or time-aligns signals. Every input must remain at
 least 400 ms after conversion/trimming.
+
+For MERT arrays or tensors, `sample_rate` must still describe the actual input rate;
+it does not select the internal evaluation rate. MERT encodes the full supplied waveform
+without automatic chunking. See [MERT.md](MERT.md) for music-specific timing and settings.
 
 ## Rejected before expensive processing
 

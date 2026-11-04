@@ -14,7 +14,8 @@
 - a two-dimensional NumPy array or tensor shaped `(sources, samples)`.
 
 Audio paths carry their own sample rates. `sample_rate` describes all in-memory arrays.
-Stereo files are downmixed to mono. Every signal is resampled to 16 kHz before evaluation.
+Stereo files are downmixed to mono. Signals are resampled to 16 kHz before evaluation,
+or directly to 24 kHz when `model="mert"` is selected in the source checkout.
 WAV and FLAC are tested end to end; see [INPUTS.md](INPUTS.md) for the complete contract.
 
 MAPSS requires at least two sources. The number, order, and duration of references and
@@ -45,12 +46,15 @@ mapss(
 
 - `source_names`: unique labels used in returned tables.
 - `model`: representation backbone. The default reproduces the paper's selected English case study.
-- `layer`: transformer layer. `None` chooses the paper-aligned default for the selected model.
+- `layer`: transformer layer. `None` chooses the paper-aligned default for the selected model,
+  except MERT, which requires an explicit hidden-state index in `0..12`.
 - `alpha`: diffusion-map normalization parameter in `[0, 1]`.
-- `add_ci`: computes the deterministic and high-probability error components.
+- `add_ci`: computes the deterministic and high-probability error components, including
+  for MERT. The default is `True`.
 - `seed`: controls stochastic distortions and PyTorch/NumPy randomness.
 - `max_gpus`: `None` uses all visible GPUs or CPU when none are available; `0` forces
   CPU; a positive value requires CUDA to be visible to PyTorch.
+  MERT uses at most one CUDA device regardless of the positive cap.
 - `length_policy`: `"error"` rejects unequal lengths; `"trim"` trims to the shortest.
 - `verbose`: prints engine progress when true.
 
@@ -66,6 +70,11 @@ mapss(
 
 `MAPSSResult.save(directory)` writes `ps_scores.csv`, `pm_scores.csv`,
 `confidence.csv` when present, and `summary.csv`.
+
+The unreleased MERT backend returns a `MAPSSResult` subclass and additionally saves
+`mert_config.json`. Its scores use a 24 kHz evaluation rate, and `add_ci=True` returns
+the usual confidence table. See [MERT.md](MERT.md) for the MERT-specific CI construction,
+frame alignment, and reproducibility details.
 
 ### `MAPSSResult.save(..., plot=True)`
 
@@ -87,6 +96,29 @@ Automatic paper-style plotting requires `add_ci=True` and the optional `plot` de
 If either condition is missing, MAPSS raises a direct remediation message instead of
 creating an incomplete figure. `plot_filename` must be a relative `.png`, `.pdf`, or `.svg`
 path inside the result directory, and `plot_dpi` must be a positive integer.
+
+MERT also supports `result.save(..., plot=True)` with `add_ci=False`, creating a
+two-panel PS/PM score figure. With the default `add_ci=True`, it creates the six-panel
+figure. The optional `plot` dependency is required in both cases.
+
+### MERT music example (source checkout only)
+
+```python
+result = mapss(
+    reference=references,
+    output=estimates,
+    model="mert",
+    layer=1,
+    add_ci=True,
+    max_gpus=0,
+)
+result.save("results/music_mert", plot=True)
+```
+
+For in-memory waveforms, pass their actual `sample_rate`. Layer `1` and layer `3` are
+the paper's settings for music mixtures with and without drums, respectively; use one
+layer consistently across all sources. This backend requires PyTorch 2.6 or later and
+is not included in the published 1.1.2 package. See [MERT.md](MERT.md) for installation.
 
 ### Exceptions and validation
 

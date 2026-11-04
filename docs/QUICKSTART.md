@@ -3,6 +3,11 @@
 This guide starts with an empty directory and ends with PS/PM CSV files and a plot. It
 uses the released package from PyPI; cloning the repository is not required.
 
+For the unreleased MERT music backend, use the separate [source-checkout guide](MERT.md).
+It requires `--model mert --layer 1` (or another explicit layer), computes confidence
+quantities by default, and supports `--plot` for the six-panel figure. Adding `--no-ci`
+produces a two-panel score figure. The PyPI 1.1.2 installation below does not include it.
+
 ## Requirements
 
 - Python 3.10, 3.11, or 3.12 (64-bit recommended)
@@ -157,6 +162,6 @@ result = mapss(reference=references, output=outputs, add_ci=True, max_gpus=0)
 result.save("mapss_results", plot=True)
 ```
 
-`plot=True` and `--plot` intentionally require confidence computation. If you set
+For the released backbones, `plot=True` and `--plot` intentionally require confidence computation. If you set
 `add_ci=False` or use `--no-ci`, save the tables without plotting or use the standalone
 two-panel score plot afterward.
