@@ -81,8 +81,8 @@ jobs:
         run: |
           python -m venv wheel-check
           wheel-check/bin/python -m pip install --upgrade pip
-          wheel-check/bin/python -m pip install "dist/mapss_measures-1.1.2-py3-none-any.whl[plot]"
+          wheel-check/bin/python -m pip install "dist/mapss_measures-1.2.0-py3-none-any.whl[mert,plot]"
           wheel-check/bin/python -m pip check
-          wheel-check/bin/python -c "import mapss; assert mapss.__version__ == '1.1.2'"
+          wheel-check/bin/python -c "import mapss; from mapss import _mert, _mert_ci, _mert_manifest; assert mapss.__version__ == '1.2.0'"
           wheel-check/bin/python -m mapss --help
           wheel-check/bin/python -m mapss.plotting --help

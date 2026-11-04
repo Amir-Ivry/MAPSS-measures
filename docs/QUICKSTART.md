@@ -3,10 +3,11 @@
 This guide starts with an empty directory and ends with PS/PM CSV files and a plot. It
 uses the released package from PyPI; cloning the repository is not required.
 
-For the unreleased MERT music backend, use the separate [source-checkout guide](MERT.md).
+For the MERT music backend, use the separate [music guide](MERT.md) and install
+`mapss-measures[mert,plot]==1.2.0`.
 It requires `--model mert --layer 1` (or another explicit layer), computes confidence
 quantities by default, and supports `--plot` for the six-panel figure. Adding `--no-ci`
-produces a two-panel score figure. The PyPI 1.1.2 installation below does not include it.
+produces a two-panel score figure.
 
 ## Requirements
 
@@ -31,7 +32,7 @@ py -3.11 -m venv .venv
 $python = ".\.venv\Scripts\python.exe"
 
 & $python -m pip install --upgrade pip
-& $python -m pip install "mapss-measures[plot]==1.1.2"
+& $python -m pip install "mapss-measures[plot]==1.2.0"
 & $python -m pip check
 & $python -c 'import mapss; print("MAPSS version:", mapss.__version__); print(mapss.__file__)'
 ```
@@ -128,7 +129,7 @@ python3.11 -m venv .venv
 python=.venv/bin/python
 
 "$python" -m pip install --upgrade pip
-"$python" -m pip install "mapss-measures[plot]==1.1.2"
+"$python" -m pip install "mapss-measures[plot]==1.2.0"
 "$python" -m pip check
 "$python" -c 'import mapss; print(mapss.__version__)'
 
@@ -162,6 +163,6 @@ result = mapss(reference=references, output=outputs, add_ci=True, max_gpus=0)
 result.save("mapss_results", plot=True)
 ```
 
-For the released backbones, `plot=True` and `--plot` intentionally require confidence computation. If you set
+For the non-MERT backbones, `plot=True` and `--plot` intentionally require confidence computation. If you set
 `add_ci=False` or use `--no-ci`, save the tables without plotting or use the standalone
 two-panel score plot afterward.

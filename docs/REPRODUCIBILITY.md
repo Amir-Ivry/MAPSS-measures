@@ -23,7 +23,7 @@ result = mapss(
 `max_gpus` controls hardware use rather than the scientific definition, but it should still
 be recorded with the environment.
 
-For the unreleased MERT backend, use an explicit layer; confidence calculations follow
+For the MERT backend, use an explicit layer; confidence calculations follow
 the existing `add_ci=True` default. See [MERT.md](MERT.md) for their construction and
 assumptions. Preserve `mert_config.json`, the evaluator commit, and the supplied
 waveform duration/context. MERT uses a pinned checkpoint revision and corrected alignment
@@ -71,11 +71,12 @@ the PM aggregation and the Appendix B.4 PS pooling procedure defined in the ICLR
 Install an exact version in evaluation infrastructure:
 
 ```text
-mapss-measures==1.1.2
+mapss-measures==1.2.0
 ```
 
 Do not evaluate some systems from a moving GitHub `main` branch and others from PyPI.
 Archive the evaluator commit or container image used for the final results.
 
-MERT currently requires installation from a source checkout; the 1.1.2 pin above does
-not contain that backend. Record the exact checkout commit and any local changes.
+For MERT, use `mapss-measures[mert]==1.2.0` (or `[mert,plot]` for figures) to install
+its PyTorch requirement. If using a source checkout, record the exact commit and any
+local changes.

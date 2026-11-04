@@ -15,7 +15,7 @@
 
 Audio paths carry their own sample rates. `sample_rate` describes all in-memory arrays.
 Stereo files are downmixed to mono. Signals are resampled to 16 kHz before evaluation,
-or directly to 24 kHz when `model="mert"` is selected in the source checkout.
+or directly to 24 kHz when `model="mert"` is selected.
 WAV and FLAC are tested end to end; see [INPUTS.md](INPUTS.md) for the complete contract.
 
 MAPSS requires at least two sources. The number, order, and duration of references and
@@ -71,7 +71,7 @@ mapss(
 `MAPSSResult.save(directory)` writes `ps_scores.csv`, `pm_scores.csv`,
 `confidence.csv` when present, and `summary.csv`.
 
-The unreleased MERT backend returns a `MAPSSResult` subclass and additionally saves
+The MERT backend returns a `MAPSSResult` subclass and additionally saves
 `mert_config.json`. Its scores use a 24 kHz evaluation rate, and `add_ci=True` returns
 the usual confidence table. See [MERT.md](MERT.md) for the MERT-specific CI construction,
 frame alignment, and reproducibility details.
@@ -101,7 +101,7 @@ MERT also supports `result.save(..., plot=True)` with `add_ci=False`, creating a
 two-panel PS/PM score figure. With the default `add_ci=True`, it creates the six-panel
 figure. The optional `plot` dependency is required in both cases.
 
-### MERT music example (source checkout only)
+### MERT music example
 
 ```python
 result = mapss(
@@ -117,8 +117,8 @@ result.save("results/music_mert", plot=True)
 
 For in-memory waveforms, pass their actual `sample_rate`. Layer `1` and layer `3` are
 the paper's settings for music mixtures with and without drums, respectively; use one
-layer consistently across all sources. This backend requires PyTorch 2.6 or later and
-is not included in the published 1.1.2 package. See [MERT.md](MERT.md) for installation.
+layer consistently across all sources. This backend is available from version 1.2.0 and
+requires PyTorch 2.6 or later via the `mert` extra. See [MERT.md](MERT.md) for installation.
 
 ### Exceptions and validation
 
@@ -160,7 +160,7 @@ Record all arguments and the installed `mapss-measures` version with any leaderb
 Install the optional plotting dependency and plot all PS/PM source columns:
 
 ```bash
-python -m pip install "mapss-measures[plot]==1.1.2"
+python -m pip install "mapss-measures[plot]==1.2.0"
 python -m mapss.plotting results/team_system_a
 ```
 

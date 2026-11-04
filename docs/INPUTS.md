@@ -32,7 +32,7 @@ and path.
 ## Conversion and duration
 
 Every source is independently downmixed to mono and resampled to 16 kHz, or directly
-to 24 kHz for the unreleased `model="mert"` backend. MAPSS then
+to 24 kHz for the `model="mert"` backend. MAPSS then
 requires all converted references and outputs to have exactly equal duration. The default
 `length_policy="error"` reports the duration and sample count of every input when they
 differ.

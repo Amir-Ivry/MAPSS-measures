@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.2.0 - 2026-11-04
 
 - Add an isolated MERT music backend with direct 24 kHz input conversion, an explicit
   layer, pinned checkpoint revision, and corrected feature/activity frame alignment.
@@ -8,8 +8,9 @@
   six-panel plotting; retain optional score-only evaluation and two-panel plotting.
   Keep MERT CI processing separate, with PM reference-centered moments and explicit
   device handling. Save evaluation metadata alongside the results.
-- Run MERT on CPU or one CUDA device, with PyTorch 2.6 or later for MERT only.
-- Add source-checkout music examples and document the distinction from exact paper-result
+- Run MERT on CPU or one CUDA device, with PyTorch 2.6 or later for MERT only;
+  the optional `mert` installation extra supplies this requirement.
+- Add music examples and document the distinction from exact paper-result
   reproduction. Preserve the existing backbones and shared metric/distortion behavior.
 
 ## 1.1.2 - 2026-08-11
